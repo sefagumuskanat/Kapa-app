@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "KAPAMETRE",
+    "slug": "kapametre",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "kapametre",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0B1220"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kapametre.app"
+    },
+    "android": {
+      "package": "com.kapametre.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B1220"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "tagline": "Varlığını ölç."
+    }
+  }
+}

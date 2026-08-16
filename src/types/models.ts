@@ -1,0 +1,236 @@
+/**
+ * KAPAMETRE domain modelleri.
+ *
+ * Ürün kuralı: bu uygulama banka, pazar yeri, sosyal platform veya
+ * fotoğraf tabanlı envanter uygulaması DEĞİLDİR. Modeller yalnızca
+ * "metin tabanlı varlık kaydı + 3 senaryoda değerleme" ihtiyacını karşılar.
+ */
+
+export type Currency = 'TRY' | 'USD' | 'EUR';
+
+export type AssetCategory =
+  | 'gold'
+  | 'silver'
+  | 'jewelry'
+  | 'watch'
+  | 'electronics'
+  | 'photography'
+  | 'vehicle'
+  | 'bicycle'
+  | 'furniture'
+  | 'collectible'
+  | 'other';
+
+export type AssetCondition = 'new' | 'likeNew' | 'good' | 'fair' | 'poor';
+
+export type MeasurementUnit = 'piece' | 'gram' | 'carat' | 'set';
+
+/** Varlığın nasıl edinildiği — maliyet bilinmeyebilir, bu bir hata değildir. */
+export type AcquisitionSource = 'purchase' | 'gift' | 'inheritance' | 'unknown';
+
+/** Değerlemenin hangi senaryoda okunduğu. Normal = ana metrik. */
+export type ValuationScenario = 'fast' | 'normal' | 'patient';
+
+/** Değer hangi veriden türetildi — sahte kesinlik yok, kaynak her zaman görünür. */
+export type ValuationSourceKind =
+  | 'mock-catalog'
+  | 'mock-market'
+  | 'user-declared'
+  | 'acquisition-fallback';
+
+export interface ValuationSource {
+  kind: ValuationSourceKind;
+  /** Kullanıcıya gösterilecek kaynak etiketi. */
+  label: string;
+  /** ISO-8601. Kullanıcıya "ne kadar taze" bilgisini vermek zorunludur. */
+  timestamp: string;
+}
+
+/** Bir varlığı oluşturan alt parça (ör. gövde + lens + çanta). */
+export interface AssetComponent {
+  id: string;
+  assetId: string;
+  name: string;
+  category: AssetCategory;
+  quantity: number;
+  unit: MeasurementUnit;
+  condition: AssetCondition;
+  /** CatalogService referansı; serbest metin girişte boş kalır. */
+  catalogRef?: string;
+  notes?: string;
+}
+
+/** Edinim partisi — aynı varlık farklı tarih/maliyetlerde alınmış olabilir. */
+export interface AcquisitionLot {
+  id: string;
+  assetId: string;
+  /** ISO-8601 tarih. */
+  acquiredAt: string;
+  quantity: number;
+  /** Birim maliyet. null = maliyet bilinmiyor (hediye/miras/unutulmuş). */
+  unitCost: number | null;
+  currency: Currency;
+  source: AcquisitionSource;
+  note?: string;
+}
+
+export interface Asset {
+  id: string;
+  name: string;
+  category: AssetCategory;
+  condition: AssetCondition;
+  quantity: number;
+  unit: MeasurementUnit;
+  /** Katalog eşleşmesi varsa referansı; yoksa manuel giriştir. */
+  catalogRef?: string;
+  components: AssetComponent[];
+  lots: AcquisitionLot[];
+  /** Kullanıcının kendi beyan ettiği referans değer (opsiyonel). */
+  declaredUnitValue?: number | null;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  isArchived: boolean;
+}
+
+/** Tek bir varlığın belirli bir andaki 3 senaryolu değerlemesi. */
+export interface ValuationSnapshot {
+  id: string;
+  assetId: string;
+  currency: Currency;
+  /** Hızlı satış — likiditeye öncelik, en düşük değer. */
+  fastValue: number;
+  /** Normal satış — ANA METRİK. Sıralama ve toplamlar bunu kullanır. */
+  normalValue: number;
+  /** Tok satıcı — sabırlı satış, en yüksek değer. */
+  patientValue: number;
+  /** 0..1 arası. Sahte kesinlik yasak; düşük veri = düşük skor. */
+  confidenceScore: number;
+  source: ValuationSource;
+  /** ISO-8601. source.timestamp ile aynı olabilir, ayrı alan zorunlu. */
+  sourceTimestamp: string;
+  /** Bilinen toplam edinim maliyeti; bilinmiyorsa null. */
+  acquisitionCost: number | null;
+  /** normalValue - acquisitionCost; maliyet bilinmiyorsa null. */
+  unrealizedGain: number | null;
+  /** Skorun neden o seviyede olduğunu açıklayan kısa notlar. */
+  confidenceFactors: string[];
+  computedAt: string;
+}
+
+export interface CategoryBreakdown {
+  category: AssetCategory;
+  normalValue: number;
+  assetCount: number;
+  /** 0..1 arası portföy payı. */
+  share: number;
+}
+
+/** Tüm portföyün tek andaki özeti. */
+export interface PortfolioSnapshot {
+  id: string;
+  createdAt: string;
+  currency: Currency;
+  totals: Record<ValuationScenario, number>;
+  assetCount: number;
+  /** Maliyeti bilinen kısmın toplamı. */
+  knownAcquisitionCost: number;
+  /** Maliyeti bilinmeyen varlık sayısı — şeffaflık için gösterilir. */
+  unknownCostAssetCount: number;
+  unrealizedGain: number | null;
+  averageConfidence: number;
+  byCategory: CategoryBreakdown[];
+}
+
+export type DocumentKind = 'invoice' | 'warranty' | 'receipt' | 'certificate' | 'other';
+
+export interface ExtractedField {
+  key: string;
+  label: string;
+  value: string;
+  /** 0..1 — OCR alan bazlı güven. */
+  confidence: number;
+}
+
+/**
+ * Cihazda kalan belge kaydı. Yalnızca BELGE taranır; ürün fotoğrafı yoktur.
+ * `storageRef` şifreli yerel depo anahtarıdır, ham dosya yolu değildir.
+ */
+export interface LocalDocumentRecord {
+  id: string;
+  title: string;
+  kind: DocumentKind;
+  capturedAt: string;
+  linkedAssetId: string | null;
+  extractedFields: ExtractedField[];
+  storageRef: string;
+  /** Hassas alanlar maskelendi mi. */
+  redacted: boolean;
+  /** Belge cihazdan hiç çıkmaz. */
+  neverUploaded: true;
+}
+
+export type RankCohort = 'starter' | 'builder' | 'established' | 'advanced';
+
+/** Sıralama katılımı ayrı ve açık rızaya bağlıdır. */
+export interface RankConsent {
+  granted: boolean;
+  grantedAt: string | null;
+  revokedAt: string | null;
+  /** Kimliksiz, cihazda üretilen takma kimlik. Kişisel veri içermez. */
+  pseudonymId: string | null;
+  cohort: RankCohort | null;
+  /** Sadece Normal Satış değeri paylaşılır — değişmez kural. */
+  shareNormalValueOnly: true;
+}
+
+export type PremiumFeature =
+  | 'detailed-rank'
+  | 'valuation-history'
+  | 'unlimited-assets'
+  | 'ad-free'
+  | 'export-report';
+
+export interface SubscriptionEntitlement {
+  tier: 'free' | 'premium';
+  active: boolean;
+  productId: string | null;
+  /** ISO-8601 veya null (ücretsiz kademe). */
+  renewsAt: string | null;
+  source: 'mock-store';
+  features: PremiumFeature[];
+}
+
+/** Sıralama sonucu — asla kullanıcı listesi içermez. */
+export interface RankResult {
+  cohort: RankCohort;
+  /** Maskelenmiş yüzdelik dilim, ör. "üst %25". */
+  maskedPercentile: string;
+  /** Kaba kohort büyüklüğü; kesin sayı vermeyiz. */
+  cohortSizeBucket: string;
+  /** Premium olmayan kullanıcıda kilitli detay olduğunu belirtir. */
+  detailLocked: boolean;
+  computedAt: string;
+}
+
+export interface CatalogItem {
+  ref: string;
+  name: string;
+  category: AssetCategory;
+  unit: MeasurementUnit;
+  /** Mock referans birim değeri. */
+  referenceUnitValue: number;
+  currency: Currency;
+  keywords: string[];
+}
+
+export interface MarketQuote {
+  category: AssetCategory;
+  unit: MeasurementUnit;
+  unitValue: number;
+  currency: Currency;
+  /** Kaynak mock'tur; canlı fiyat iddiası yoktur. */
+  source: ValuationSource;
+  /** 0..1 — kategori bazlı fiyat belirsizliği. */
+  reliability: number;
+}

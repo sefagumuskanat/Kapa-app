@@ -1,0 +1,190 @@
+import { Asset, LocalDocumentRecord } from '@/types';
+
+/**
+ * Demo portföyü — şartnamede istenen 5 senaryo.
+ * Uygulama gerçek backend olmadan tam çalışsın diye ilk açılışta yüklenir.
+ */
+
+const iso = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d)).toISOString();
+const CREATED = iso(2026, 8, 10);
+
+export const DEMO_ASSETS: Asset[] = [
+  {
+    id: 'asset_gold_20g',
+    name: '22 Ayar Altın Bilezik',
+    category: 'gold',
+    condition: 'good',
+    quantity: 20,
+    unit: 'gram',
+    catalogRef: 'cat_gold_22k',
+    components: [],
+    lots: [
+      {
+        id: 'lot_gold_1',
+        assetId: 'asset_gold_20g',
+        acquiredAt: iso(2022, 5, 18),
+        quantity: 12,
+        unitCost: 1080,
+        currency: 'TRY',
+        source: 'purchase',
+        note: 'İlk alım',
+      },
+      {
+        id: 'lot_gold_2',
+        assetId: 'asset_gold_20g',
+        acquiredAt: iso(2024, 9, 3),
+        quantity: 8,
+        unitCost: 2410,
+        currency: 'TRY',
+        source: 'purchase',
+        note: 'İkinci alım',
+      },
+    ],
+    notes: 'İki ayrı partide alındı.',
+    createdAt: CREATED,
+    updatedAt: CREATED,
+    isArchived: false,
+  },
+  {
+    id: 'asset_sony_a7iv',
+    name: 'Sony A7 IV Fotoğraf Seti',
+    category: 'photography',
+    condition: 'likeNew',
+    quantity: 1,
+    unit: 'piece',
+    catalogRef: 'cat_sony_a7iv',
+    components: [
+      {
+        id: 'cmp_lens_2470',
+        assetId: 'asset_sony_a7iv',
+        name: 'FE 24-70mm GM II',
+        category: 'photography',
+        quantity: 1,
+        unit: 'piece',
+        condition: 'likeNew',
+        catalogRef: 'cat_sony_2470gm',
+      },
+      {
+        id: 'cmp_bag',
+        assetId: 'asset_sony_a7iv',
+        name: 'Taşıma Çantası',
+        category: 'photography',
+        quantity: 1,
+        unit: 'piece',
+        condition: 'good',
+        catalogRef: 'cat_camera_bag',
+      },
+    ],
+    lots: [
+      {
+        id: 'lot_sony_1',
+        assetId: 'asset_sony_a7iv',
+        acquiredAt: iso(2025, 3, 14),
+        quantity: 1,
+        unitCost: 148000,
+        currency: 'TRY',
+        source: 'purchase',
+        note: 'Gövde + lens + çanta birlikte',
+      },
+    ],
+    notes: 'Kutulu, faturalı.',
+    createdAt: CREATED,
+    updatedAt: CREATED,
+    isArchived: false,
+  },
+  {
+    id: 'asset_phone_unknown',
+    name: 'Akıllı Telefon',
+    category: 'electronics',
+    condition: 'good',
+    quantity: 1,
+    unit: 'piece',
+    catalogRef: 'cat_phone_flagship',
+    components: [],
+    lots: [
+      {
+        id: 'lot_phone_1',
+        assetId: 'asset_phone_unknown',
+        acquiredAt: iso(2024, 1, 20),
+        quantity: 1,
+        // Maliyet bilinmiyor — uygulama bunu gizlemez, açıkça gösterir.
+        unitCost: null,
+        currency: 'TRY',
+        source: 'unknown',
+        note: 'Ne kadara alındığı hatırlanmıyor',
+      },
+    ],
+    createdAt: CREATED,
+    updatedAt: CREATED,
+    isArchived: false,
+  },
+  {
+    id: 'asset_bike_gift',
+    name: 'Şehir Bisikleti',
+    category: 'bicycle',
+    condition: 'fair',
+    quantity: 1,
+    unit: 'piece',
+    catalogRef: 'cat_bike_city',
+    components: [],
+    lots: [
+      {
+        id: 'lot_bike_1',
+        assetId: 'asset_bike_gift',
+        acquiredAt: iso(2023, 6, 2),
+        quantity: 1,
+        unitCost: null,
+        currency: 'TRY',
+        source: 'gift',
+        note: 'Hediye geldi',
+      },
+    ],
+    createdAt: CREATED,
+    updatedAt: CREATED,
+    isArchived: false,
+  },
+  {
+    id: 'asset_diamond_ring',
+    name: 'Pırlanta Tektaş Yüzük',
+    category: 'jewelry',
+    condition: 'likeNew',
+    quantity: 0.85,
+    unit: 'carat',
+    catalogRef: 'cat_diamond_solitaire',
+    components: [],
+    lots: [
+      {
+        id: 'lot_ring_1',
+        assetId: 'asset_diamond_ring',
+        acquiredAt: iso(2021, 11, 27),
+        quantity: 0.85,
+        unitCost: 96000,
+        currency: 'TRY',
+        source: 'purchase',
+        note: 'Sertifikalı',
+      },
+    ],
+    notes: '0,85 karat, sertifikalı.',
+    createdAt: CREATED,
+    updatedAt: CREATED,
+    isArchived: false,
+  },
+];
+
+export const DEMO_DOCUMENTS: LocalDocumentRecord[] = [
+  {
+    id: 'doc_demo_invoice',
+    title: 'Fotoğraf Seti Faturası',
+    kind: 'invoice',
+    capturedAt: iso(2026, 8, 11),
+    linkedAssetId: 'asset_sony_a7iv',
+    extractedFields: [
+      { key: 'merchant', label: 'Satıcı', value: 'Teknoloji Mağazası A.Ş.', confidence: 0.88 },
+      { key: 'date', label: 'Tarih', value: '14.03.2025', confidence: 0.92 },
+      { key: 'total', label: 'Tutar', value: '148.000 ₺', confidence: 0.83 },
+    ],
+    storageRef: 'vault_demo_invoice',
+    redacted: false,
+    neverUploaded: true,
+  },
+];
