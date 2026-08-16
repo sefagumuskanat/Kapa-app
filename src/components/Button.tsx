@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 
-import { colors, radius, spacing, TOUCH_TARGET, typography } from '@/theme';
+import { colors, radius, spacing, typography } from '@/theme';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type Size = 'md' | 'lg';
@@ -76,16 +76,16 @@ const PALETTE: Record<Variant, { background: string; border: string; text: strin
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: TOUCH_TARGET,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.lg,
+    minHeight: 48,
+    paddingHorizontal: spacing.lg,
+    // Hap şeklinde butonlar tonu belirgin şekilde yumuşatıyor.
+    borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
     justifyContent: 'center',
   },
   large: {
-    minHeight: 52,
-    borderRadius: radius.xl,
+    minHeight: 56,
   },
   content: {
     flexDirection: 'row',

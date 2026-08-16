@@ -9,7 +9,7 @@
     "newArchEnabled": true,
     "splash": {
       "resizeMode": "contain",
-      "backgroundColor": "#0B1220"
+      "backgroundColor": "#160E27"
     },
     "assetBundlePatterns": ["**/*"],
     "ios": {
@@ -19,14 +19,14 @@
     "android": {
       "package": "com.kapametre.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0B1220"
+        "backgroundColor": "#160E27"
       }
     },
     "web": {
       "bundler": "metro"
     },
     "extra": {
-      "tagline": "Varlığını ölç."
+      "tagline": "Kaç paralık adamsın?"
     }
   }
 }

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, fonts, radius, spacing, typography } from '@/theme';
 import { confidenceLabel, formatPercent } from '@/utils/format';
 
 interface ConfidenceBarProps {
@@ -24,7 +24,7 @@ export function ConfidenceBar({ score, factors, compact = false }: ConfidenceBar
     <View style={styles.wrapper}>
       <View style={styles.headerRow}>
         <Ionicons name="pulse-outline" size={14} color={tone} />
-        <Text style={[typography.caption, { color: tone, fontWeight: '600' }]}>
+        <Text style={[typography.caption, { color: tone, fontFamily: fonts.bodySemi }]}>
           {confidenceLabel(clamped)}
         </Text>
         <Text style={[typography.caption, styles.score]}>{formatPercent(clamped)}</Text>

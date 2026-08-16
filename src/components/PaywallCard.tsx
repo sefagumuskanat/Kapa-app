@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: colors.goldSoft,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(244, 199, 102, 0.4)',
+    borderColor: colors.gold,
   },
   pressed: { opacity: 0.75 },
   teaserIcon: {
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(244, 199, 102, 0.16)',
+    backgroundColor: colors.goldSoft,
   },
   teaserBody: { flex: 1, gap: 2 },
   teaserTitle: { color: colors.gold },

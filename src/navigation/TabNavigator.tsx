@@ -11,7 +11,7 @@ import { AssetListScreen } from '@/screens/AssetListScreen';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { RankingScreen } from '@/screens/RankingScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
-import { colors, radius, spacing, TOUCH_TARGET, typography } from '@/theme';
+import { TOUCH_TARGET, colors, fonts, radius, spacing, typography } from '@/theme';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
@@ -24,8 +24,8 @@ const ICONS: Record<keyof TabParamList, keyof typeof Ionicons.glyphMap> = {
 };
 
 const LABELS: Record<keyof TabParamList, string> = {
-  Home: 'Ana Sayfa',
-  Assets: 'Varlıklar',
+  Home: 'Karnem',
+  Assets: 'Neyim var',
   AddTab: 'Ekle',
   Ranking: 'Sıralama',
   Settings: 'Ayarlar',
@@ -150,6 +150,6 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.7 },
   tabLabel: { color: colors.textFaint, fontSize: 11 },
-  tabLabelActive: { color: colors.green, fontWeight: '600' },
+  tabLabelActive: { color: colors.green, fontFamily: fonts.bodyBold },
   placeholder: { flex: 1, backgroundColor: colors.background },
 });

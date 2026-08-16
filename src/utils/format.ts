@@ -1,3 +1,4 @@
+import { confidenceVibe, SCENARIO_VIBE } from '@/content/vibes';
 import { AssetCategory, AssetCondition, Currency, MeasurementUnit, ValuationScenario } from '@/types';
 
 const CURRENCY_SYMBOL: Record<Currency, string> = {
@@ -64,6 +65,7 @@ export function formatRelativeTime(iso: string): string {
   return formatDate(iso);
 }
 
+/** Emoji + isim — liste ve filtrelerde birlikte kullanılır. */
 export const CATEGORY_LABEL: Record<AssetCategory, string> = {
   gold: 'Altın',
   silver: 'Gümüş',
@@ -78,26 +80,12 @@ export const CATEGORY_LABEL: Record<AssetCategory, string> = {
   other: 'Diğer',
 };
 
-export const CATEGORY_ICON: Record<AssetCategory, string> = {
-  gold: 'ellipse',
-  silver: 'ellipse-outline',
-  jewelry: 'diamond-outline',
-  watch: 'watch-outline',
-  electronics: 'phone-portrait-outline',
-  photography: 'camera-outline',
-  vehicle: 'car-outline',
-  bicycle: 'bicycle-outline',
-  furniture: 'bed-outline',
-  collectible: 'ribbon-outline',
-  other: 'cube-outline',
-};
-
 export const CONDITION_LABEL: Record<AssetCondition, string> = {
   new: 'Sıfır',
   likeNew: 'Sıfır ayarında',
-  good: 'İyi',
-  fair: 'Orta',
-  poor: 'Yıpranmış',
+  good: 'İyi durumda',
+  fair: 'İdare eder',
+  poor: 'Epey yıpranmış',
 };
 
 export const UNIT_LABEL: Record<MeasurementUnit, string> = {
@@ -114,14 +102,12 @@ export const SCENARIO_LABEL: Record<ValuationScenario, string> = {
 };
 
 export const SCENARIO_HINT: Record<ValuationScenario, string> = {
-  fast: 'Bugün elden çıkarırsan',
-  normal: 'Makul sürede satarsan',
-  patient: 'Beklemeye razıysan',
+  fast: SCENARIO_VIBE.fast.hint,
+  normal: SCENARIO_VIBE.normal.hint,
+  patient: SCENARIO_VIBE.patient.hint,
 };
 
+/** Güven skorunun mahalle ağzıyla karşılığı. */
 export function confidenceLabel(score: number): string {
-  if (score >= 0.75) return 'Yüksek güven';
-  if (score >= 0.5) return 'Orta güven';
-  if (score >= 0.3) return 'Düşük güven';
-  return 'Çok düşük güven';
+  return confidenceVibe(score).label;
 }

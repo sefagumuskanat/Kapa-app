@@ -33,19 +33,19 @@ export interface IAdService {
 
 const CREATIVES: Record<AdSlot, Omit<AdCreative, 'slot' | 'personalized'>> = {
   'home-footer': {
-    headline: 'Bu alan reklam alanıdır',
-    body: 'Reklam isteği portföy verisi içermez. Premium ile tamamen kapatılır.',
-    ctaLabel: 'Reklamları kaldır',
+    headline: 'Burası reklam yeri 🙂',
+    body: 'Merak etme, reklamcılar senin neyin olduğunu görmüyor. Premium alırsan burası tamamen kapanır.',
+    ctaLabel: 'Şunları kaldır',
   },
   'asset-list-footer': {
-    headline: 'Reklamsız kullan',
-    body: 'Varlık listen reklam sağlayıcısına hiçbir zaman iletilmez.',
-    ctaLabel: 'Premium’a bak',
+    headline: 'Reklamsız takılmak ister misin?',
+    body: 'Listendeki hiçbir şey reklamcılara gitmiyor — zaten gitmeyecek. Ama görüntü kirliliğinden kurtulabilirsin.',
+    ctaLabel: 'Premium’a bakayım',
   },
   'ranking-footer': {
-    headline: 'Sıralama reklamla ilişkilendirilmez',
-    body: 'Sıralama verisi ile reklam katmanı arasında bağlantı kurulmaz.',
-    ctaLabel: 'Premium’a bak',
+    headline: 'Sıralamanın reklamla alakası yok',
+    body: 'Hangi ligde olduğunla reklamlar arasında hiçbir bağ kurmuyoruz.',
+    ctaLabel: 'Premium’a bakayım',
   },
 };
 

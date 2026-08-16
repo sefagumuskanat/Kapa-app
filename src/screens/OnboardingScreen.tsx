@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button, Card, Disclaimer, ToggleRow } from '@/components';
+import { BRAND, RANK_PITCH } from '@/content/vibes';
 import type { RootStackParamList } from '@/navigation/types';
 import { useApp } from '@/store/AppContext';
 import { colors, radius, spacing, TOUCH_TARGET, typography } from '@/theme';
@@ -12,26 +13,26 @@ import { colors, radius, spacing, TOUCH_TARGET, typography } from '@/theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 
 interface Slide {
-  icon: keyof typeof Ionicons.glyphMap;
+  emoji: string;
   title: string;
   body: string;
 }
 
 const SLIDES: Slide[] = [
   {
-    icon: 'list-outline',
-    title: 'Varlıklarını yaz',
-    body: 'Altın, elektronik, mücevher, bisiklet… Fotoğraf yok, form yok gibi kısa metinle ekle. Ne kadara aldığını hatırlamıyorsan da sorun değil.',
+    emoji: '✍️',
+    title: 'Neyin var, yaz',
+    body: 'Altın, telefon, bisiklet, yüzük… aklına ne geliyorsa. Fotoğraf çekmene gerek yok, iki kelimeyle yaz geç. Ne kadara aldığını hatırlamıyorsan da olur, kimse kızmaz.',
   },
   {
-    icon: 'options-outline',
-    title: 'Üç senaryoda gör',
-    body: 'Her varlık için Hızlı Satış, Normal Satış ve Tok Satıcı değeri hesaplanır. Normal Satış ana metriktir; toplamın ve sıralaman onu kullanır.',
+    emoji: '💸',
+    title: 'Üç ihtimali gör',
+    body: 'Her şey için üç rakam veriyoruz: acil satarsan, normal satarsan, bir de bekleyip iyi fiyata satarsan. Ortadaki rakam senin asıl karneni belirliyor.',
   },
   {
-    icon: 'lock-closed-outline',
-    title: 'Veri cihazında kalır',
-    body: 'Varlık listen şifreli olarak cihazında tutulur. Sunucuya yalnızca kategori ve birim düzeyinde fiyat sorgusu gider.',
+    emoji: '🤫',
+    title: 'Kimse görmüyor',
+    body: 'Listen telefonunda kalıyor. Biz görmüyoruz, eşin dostun hiç görmüyor. Sunucuya sadece “altın gram kaç para” tarzı bir soru gidiyor, senin adın sanın değil.',
   },
 ];
 
@@ -75,14 +76,20 @@ export function OnboardingScreen({}: Props) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.brand}>
-          <Text style={[typography.display, styles.wordmark]}>KAPAMETRE</Text>
-          <Text style={[typography.subheading, styles.tagline]}>Varlığını ölç.</Text>
+          <Text style={styles.coin}>🪙</Text>
+          <Text style={[typography.display, styles.wordmark]}>{BRAND.name}</Text>
+          <Text style={[typography.heading, styles.tagline]}>{BRAND.tagline}</Text>
+          {step === 0 ? (
+            <View style={styles.expansionPill}>
+              <Text style={[typography.caption, styles.expansion]}>{BRAND.expansion}</Text>
+            </View>
+          ) : null}
         </View>
 
         {!isGateStep && slide ? (
           <View style={styles.slide}>
-            <View style={styles.iconCircle}>
-              <Ionicons name={slide.icon} size={30} color={colors.green} />
+            <View style={styles.emojiCircle}>
+              <Text style={styles.slideEmoji}>{slide.emoji}</Text>
             </View>
             <Text style={[typography.title, styles.slideTitle]}>{slide.title}</Text>
             <Text style={[typography.body, styles.slideBody]}>{slide.body}</Text>
@@ -90,9 +97,9 @@ export function OnboardingScreen({}: Props) {
         ) : (
           <View style={styles.gate}>
             <Card style={styles.gateCard}>
-              <Text style={[typography.heading, styles.gateTitle]}>Yaş doğrulaması</Text>
+              <Text style={[typography.heading, styles.gateTitle]}>🎂 Küçük bir soru</Text>
               <Text style={[typography.body, styles.gateBody]}>
-                KAPAMETRE 13 yaş ve üzeri içindir. Devam etmek için onayla.
+                Bu uygulama 13 yaş ve üzeri için. Devam etmeden önce onaylaman lazım.
               </Text>
               <Pressable
                 accessibilityRole="checkbox"
@@ -102,24 +109,24 @@ export function OnboardingScreen({}: Props) {
               >
                 <View style={[styles.checkbox, ageConfirmed && styles.checkboxChecked]}>
                   {ageConfirmed ? (
-                    <Ionicons name="checkmark" size={14} color={colors.background} />
+                    <Ionicons name="checkmark" size={15} color={colors.background} />
                   ) : null}
                 </View>
-                <Text style={[typography.body, styles.checkLabel]}>13 yaşından büyüğüm.</Text>
+                <Text style={[typography.body, styles.checkLabel]}>13 yaşından büyüğüm</Text>
               </Pressable>
             </Card>
 
             <Card padded={false} style={styles.gateCard}>
               <ToggleRow
-                icon="trending-up-outline"
-                title="Sıralamaya katıl"
-                description="İsteğe bağlı ve ayrıdır. Yalnızca Normal Satış toplamın takma bir kimlikle paylaşılır. Kullanıcı listesi veya profil yoktur; istediğin an kapatabilirsin."
+                emoji={RANK_PITCH.emoji}
+                title={RANK_PITCH.title}
+                description={RANK_PITCH.line}
                 value={rankOptIn}
                 onValueChange={setRankOptIn}
               />
             </Card>
 
-            <Disclaimer text="KAPAMETRE banka değildir, yatırım tavsiyesi vermez ve satış garantisi sunmaz. Gösterilen değerler tahminidir." />
+            <Disclaimer />
           </View>
         )}
 
@@ -132,7 +139,7 @@ export function OnboardingScreen({}: Props) {
 
       <View style={styles.footer}>
         <Button
-          label={isGateStep ? 'Başla' : 'Devam'}
+          label={isGateStep ? 'Hadi bakalım' : 'Devam'}
           onPress={handleNext}
           size="lg"
           fullWidth
@@ -145,7 +152,7 @@ export function OnboardingScreen({}: Props) {
             onPress={() => setStep(SLIDES.length)}
             style={styles.skip}
           >
-            <Text style={[typography.caption, styles.skipText]}>Geç</Text>
+            <Text style={[typography.caption, styles.skipText]}>Boş ver, geç</Text>
           </Pressable>
         ) : (
           <View style={styles.skip} />
@@ -160,22 +167,32 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    gap: spacing.xl,
+    paddingTop: spacing.lg,
+    gap: spacing.lg,
   },
-  brand: { gap: spacing.xs },
-  wordmark: { color: colors.text, letterSpacing: 1 },
+  brand: { gap: spacing.xs, alignItems: 'flex-start' },
+  coin: { fontSize: 44, lineHeight: 54 },
+  wordmark: { color: colors.text, letterSpacing: 0.5 },
   tagline: { color: colors.green },
-
-  slide: { gap: spacing.md, paddingTop: spacing.lg },
-  iconCircle: {
-    width: 64,
-    height: 64,
+  expansionPill: {
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
     borderRadius: radius.pill,
-    backgroundColor: colors.greenSoft,
+    backgroundColor: colors.goldSoft,
+  },
+  expansion: { color: colors.gold },
+
+  slide: { gap: spacing.md, paddingTop: spacing.sm },
+  emojiCircle: {
+    width: 84,
+    height: 84,
+    borderRadius: radius.pill,
+    backgroundColor: colors.purpleSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  slideEmoji: { fontSize: 40, lineHeight: 48 },
   slideTitle: { color: colors.text },
   slideBody: { color: colors.textMuted },
 
@@ -190,10 +207,10 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   checkbox: {
-    width: 22,
-    height: 22,
+    width: 24,
+    height: 24,
     borderRadius: radius.sm,
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
@@ -204,7 +221,7 @@ const styles = StyleSheet.create({
 
   dots: { flexDirection: 'row', gap: spacing.sm, marginTop: 'auto', paddingTop: spacing.lg },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.border },
-  dotActive: { backgroundColor: colors.green, width: 20 },
+  dotActive: { backgroundColor: colors.green, width: 22 },
 
   footer: { padding: spacing.lg, gap: spacing.sm },
   skip: { minHeight: TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },

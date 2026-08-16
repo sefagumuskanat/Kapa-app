@@ -9,12 +9,16 @@ export const spacing = {
   xxxl: 48,
 } as const;
 
-/** Köşe yarıçapları — kart ve buton dili 16-20 arası. */
+/**
+ * Köşe yarıçapları — eğlenceli ton için belirgin şekilde yuvarlak.
+ * Kartlar baloncuk gibi dursun, form gibi değil.
+ */
 export const radius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
+  sm: 10,
+  md: 14,
+  lg: 20,
+  xl: 26,
+  xxl: 32,
   pill: 999,
 } as const;
 

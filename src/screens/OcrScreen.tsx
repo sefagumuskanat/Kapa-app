@@ -45,7 +45,7 @@ export function OcrScreen({ navigation, route }: Props) {
     try {
       const record = ocrService.toRecord({ kind, title, linkedAssetId }, result);
       await addDocument(record);
-      Alert.alert('Kaydedildi', 'Belge yalnızca cihazında şifreli olarak saklandı.');
+      Alert.alert('Kaydedildi 🧾', 'Belge telefonunda duruyor, hiçbir yere gitmedi.');
       navigation.goBack();
     } finally {
       setSaving(false);
@@ -55,15 +55,14 @@ export function OcrScreen({ navigation, route }: Props) {
   return (
     <Screen
       title="Belge tara"
-      subtitle="Yalnızca belge · ürün fotoğrafı yok"
+      subtitle="Sadece kâğıt · eşyanın fotoğrafını istemiyoruz"
       onBack={() => navigation.goBack()}
     >
       <Card style={styles.noticeCard}>
         <View style={styles.noticeRow}>
           <Ionicons name="shield-checkmark-outline" size={18} color={colors.green} />
           <Text style={[typography.caption, styles.notice]}>
-            Tarama tamamen cihazında yapılır. Görüntü hiçbir zaman yüklenmez, saklanmaz ve
-            paylaşılmaz. Bu ekran yalnızca fatura, garanti, fiş ve sertifika gibi belgeler içindir.
+Tarama telefonunda oluyor. Görüntü hiçbir yere gitmiyor, biz de görmüyoruz. Burası sadece fatura, garanti, fiş gibi kâğıtlar için — eşyanın fotoğrafını çekmene gerek yok.
           </Text>
         </View>
       </Card>
@@ -72,13 +71,13 @@ export function OcrScreen({ navigation, route }: Props) {
         <Card style={styles.linkCard}>
           <Ionicons name="link-outline" size={16} color={colors.textMuted} />
           <Text style={[typography.body, styles.linkText]} numberOfLines={1}>
-            {linkedAsset.name} varlığına bağlanacak
+            “{linkedAsset.name}” ile eşleşecek
           </Text>
         </Card>
       ) : null}
 
       <View>
-        <Text style={[typography.caption, styles.fieldLabel]}>Belge türü</Text>
+        <Text style={[typography.caption, styles.fieldLabel]}>Ne belgesi bu?</Text>
         <View style={styles.chipRow}>
           {KINDS.map((item) => (
             <Chip
@@ -96,7 +95,7 @@ export function OcrScreen({ navigation, route }: Props) {
       </View>
 
       <Input
-        label="Başlık (opsiyonel)"
+        label="İsim versen? (şart değil)"
         placeholder={DOCUMENT_KIND_LABEL[kind]}
         value={title}
         onChangeText={setTitle}
@@ -113,14 +112,14 @@ export function OcrScreen({ navigation, route }: Props) {
           <View style={styles.scanningBody}>
             <Ionicons name="document-text-outline" size={32} color={colors.textFaint} />
             <Text style={[typography.caption, styles.muted]}>
-              Demo modunda kamera açılmaz; örnek alanlar üretilir.
+              Demoda kamera açılmıyor, örnek bilgiler geliyor.
             </Text>
           </View>
         )}
       </View>
 
       <Button
-        label={result ? 'Tekrar tara' : 'Taramayı başlat'}
+        label={result ? 'Bir daha tara' : 'Taramaya başla'}
         onPress={() => void scan()}
         loading={scanning}
         icon="scan-outline"
@@ -138,7 +137,7 @@ export function OcrScreen({ navigation, route }: Props) {
       {result ? (
         <>
           <Card style={styles.resultCard}>
-            <Text style={[typography.subheading, styles.cardTitle]}>Okunan alanlar</Text>
+            <Text style={[typography.subheading, styles.cardTitle]}>👀 Neler okuduk</Text>
             {result.fields.map((field) => (
               <View key={field.key} style={styles.fieldRow}>
                 <View style={styles.fieldBody}>
@@ -161,12 +160,12 @@ export function OcrScreen({ navigation, route }: Props) {
             <View style={styles.divider} />
             <ConfidenceBar
               score={result.overallConfidence}
-              factors={['Alanlar cihazda okundu', 'Düşük güvenli alanları elle düzeltmen önerilir']}
+              factors={['Hepsi telefonunda okundu', 'Yanlış okuduysak elle düzeltebilirsin']}
             />
           </Card>
 
           <Button
-            label="Belgeyi cihaza kaydet"
+            label="Kaydet"
             onPress={() => void save()}
             loading={saving}
             size="lg"
@@ -175,13 +174,13 @@ export function OcrScreen({ navigation, route }: Props) {
         </>
       ) : null}
 
-      <Disclaimer text="OCR sonuçları tahminidir; belge üzerindeki bilgileri kendin doğrula." />
+      <Disclaimer text="Yanlış okumuş olabiliriz. Önemliyse kâğıdın aslına bir bak." />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  noticeCard: { backgroundColor: colors.greenSoft, borderColor: 'rgba(41, 211, 145, 0.3)' },
+  noticeCard: { backgroundColor: colors.greenSoft, borderColor: colors.green },
   noticeRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
   notice: { flex: 1, color: colors.text },
   linkCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

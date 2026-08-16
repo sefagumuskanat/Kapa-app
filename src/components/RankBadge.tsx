@@ -3,7 +3,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing, typography } from '@/theme';
-import { COHORT_LABEL } from '@/services';
+import { COHORT_VIBE } from '@/content/vibes';
 import { RankResult } from '@/types';
 
 interface RankBadgeProps {
@@ -23,7 +23,7 @@ export function RankBadge({ rank, consentGranted, compact = false }: RankBadgePr
       <View style={[styles.badge, styles.locked, compact && styles.compact]}>
         <Ionicons name="lock-closed-outline" size={14} color={colors.textMuted} />
         <Text style={[typography.caption, styles.lockedText]} numberOfLines={1}>
-          Sıralama kapalı
+          Sıralama kapalı — merak ediyorsan aç
         </Text>
       </View>
     );
@@ -31,9 +31,9 @@ export function RankBadge({ rank, consentGranted, compact = false }: RankBadgePr
 
   return (
     <View style={[styles.badge, compact && styles.compact]}>
-      <Ionicons name="trending-up" size={14} color={colors.gold} />
+      <Text style={styles.cohortEmoji}>{COHORT_VIBE[rank.cohort].emoji}</Text>
       <Text style={[typography.caption, styles.cohort]} numberOfLines={1}>
-        {COHORT_LABEL[rank.cohort]}
+        {COHORT_VIBE[rank.cohort].title}
       </Text>
       <View style={styles.divider} />
       <Text style={[typography.caption, styles.percentile]} numberOfLines={1}>
@@ -59,7 +59,8 @@ const styles = StyleSheet.create({
   compact: { paddingVertical: spacing.xs, paddingHorizontal: spacing.sm },
   locked: { backgroundColor: colors.card, borderColor: colors.border },
   lockedText: { color: colors.textMuted },
-  cohort: { color: colors.gold, fontWeight: '700' },
+  cohortEmoji: { fontSize: 14, lineHeight: 18 },
+  cohort: { color: colors.gold },
   divider: { width: 1, height: 12, backgroundColor: colors.gold, opacity: 0.4 },
   percentile: { color: colors.gold },
 });

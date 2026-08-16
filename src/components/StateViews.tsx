@@ -1,12 +1,12 @@
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Button } from './Button';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, fonts, radius, spacing, typography } from '@/theme';
 
 interface EmptyStateProps {
-  icon?: keyof typeof Ionicons.glyphMap;
+  /** Boş durumlar ikon yerine emoji kullanır — ton daha sıcak oluyor. */
+  emoji?: string;
   title: string;
   description: string;
   actionLabel?: string;
@@ -16,7 +16,7 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({
-  icon = 'cube-outline',
+  emoji = '📦',
   title,
   description,
   actionLabel,
@@ -27,7 +27,7 @@ export function EmptyState({
   return (
     <View style={styles.container}>
       <View style={styles.iconCircle}>
-        <Ionicons name={icon} size={28} color={colors.textMuted} />
+        <Text style={styles.bigEmoji}>{emoji}</Text>
       </View>
       <Text style={[typography.heading, styles.title]}>{title}</Text>
       <Text style={[typography.body, styles.description]}>{description}</Text>
@@ -48,14 +48,14 @@ interface ErrorStateProps {
 }
 
 export function ErrorState({
-  title = 'Bir şeyler ters gitti',
+  title = 'Bir terslik oldu',
   description,
   onRetry,
 }: ErrorStateProps) {
   return (
     <View style={styles.container}>
       <View style={[styles.iconCircle, styles.errorCircle]}>
-        <Ionicons name="alert-circle-outline" size={28} color={colors.red} />
+        <Text style={styles.bigEmoji}>😵‍💫</Text>
       </View>
       <Text style={[typography.heading, styles.title]}>{title}</Text>
       <Text style={[typography.body, styles.description]}>{description}</Text>
@@ -68,9 +68,10 @@ export function ErrorState({
 export function OfflineBanner({ onRetry }: { onRetry?: () => void }) {
   return (
     <View style={styles.banner} accessibilityRole="alert">
-      <Ionicons name="cloud-offline-outline" size={16} color={colors.gold} />
+      <Text style={styles.bannerEmoji}>📡</Text>
       <Text style={[typography.caption, styles.bannerText]}>
-        Çevrimdışısın. Varlıkların cihazında; değerler son bilinen referansla hesaplandı.
+        İnternet yok gibi. Sorun değil, listen zaten telefonunda — değerler son bildiğimiz
+        rakamlarla hesaplandı.
       </Text>
       {onRetry ? (
         <Text
@@ -93,8 +94,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   iconCircle: {
-    width: 64,
-    height: 64,
+    width: 80,
+    height: 80,
     borderRadius: radius.pill,
     backgroundColor: colors.card,
     alignItems: 'center',
@@ -102,6 +103,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   errorCircle: { backgroundColor: colors.redSoft },
+  bigEmoji: { fontSize: 38, lineHeight: 46 },
+  bannerEmoji: { fontSize: 15 },
   title: { color: colors.text, textAlign: 'center' },
   description: {
     color: colors.textMuted,
@@ -121,5 +124,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.goldSoft,
   },
   bannerText: { flex: 1, color: colors.gold },
-  bannerAction: { color: colors.gold, fontWeight: '700' },
+  bannerAction: { color: colors.gold, fontFamily: fonts.bodyBold },
 });

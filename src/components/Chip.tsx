@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 
-import { colors, radius, spacing, TOUCH_TARGET, typography } from '@/theme';
+import { TOUCH_TARGET, colors, fonts, radius, spacing, typography } from '@/theme';
 
 interface ChipProps {
   label: string;
@@ -28,7 +28,7 @@ export function Chip({ label, selected = false, onPress, tone = 'default' }: Chi
         style={[
           typography.caption,
           styles.label,
-          selected && { color: accent.solid, fontWeight: '600' },
+          selected && { color: accent.solid, fontFamily: fonts.bodySemi },
         ]}
         numberOfLines={1}
       >

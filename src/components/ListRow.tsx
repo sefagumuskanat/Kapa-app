@@ -6,9 +6,18 @@ import { colors, radius, spacing, TOUCH_TARGET, typography } from '@/theme';
 
 interface BaseRowProps {
   icon?: keyof typeof Ionicons.glyphMap;
+  /** Emoji verilirse ikonun yerine geçer — sıcak ton için tercih edilen yol. */
+  emoji?: string;
   title: string;
   description?: string;
   tone?: 'default' | 'danger';
+}
+
+/** Satır başındaki görsel: emoji öncelikli, yoksa vektör ikon. */
+function RowLead({ emoji, icon, tint }: { emoji?: string; icon?: keyof typeof Ionicons.glyphMap; tint: string }) {
+  if (emoji) return <Text style={styles.emoji}>{emoji}</Text>;
+  if (icon) return <Ionicons name={icon} size={20} color={tint} style={styles.icon} />;
+  return null;
 }
 
 interface ToggleRowProps extends BaseRowProps {
@@ -19,6 +28,7 @@ interface ToggleRowProps extends BaseRowProps {
 
 export function ToggleRow({
   icon,
+  emoji,
   title,
   description,
   value,
@@ -27,7 +37,7 @@ export function ToggleRow({
 }: ToggleRowProps) {
   return (
     <View style={styles.row}>
-      {icon ? <Ionicons name={icon} size={20} color={colors.textMuted} style={styles.icon} /> : null}
+      <RowLead emoji={emoji} icon={icon} tint={colors.textMuted} />
       <View style={styles.body}>
         <Text style={[typography.bodyStrong, styles.title]}>{title}</Text>
         {description ? (
@@ -54,6 +64,7 @@ interface ActionRowProps extends BaseRowProps {
 
 export function ActionRow({
   icon,
+  emoji,
   title,
   description,
   value,
@@ -68,14 +79,11 @@ export function ActionRow({
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
-      {icon ? (
-        <Ionicons
-          name={icon}
-          size={20}
-          color={tone === 'danger' ? colors.red : colors.textMuted}
-          style={styles.icon}
-        />
-      ) : null}
+      <RowLead
+        emoji={emoji}
+        icon={icon}
+        tint={tone === 'danger' ? colors.red : colors.textMuted}
+      />
       <View style={styles.body}>
         <Text style={[typography.bodyStrong, { color: accent }]}>{title}</Text>
         {description ? (
@@ -117,7 +125,8 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 4,
   },
   pressed: { opacity: 0.7 },
-  icon: { width: 24, textAlign: 'center' },
+  icon: { width: 26, textAlign: 'center' },
+  emoji: { width: 26, fontSize: 20, lineHeight: 26, textAlign: 'center' },
   body: { flex: 1, gap: 2 },
   title: { color: colors.text },
   description: { color: colors.textMuted },

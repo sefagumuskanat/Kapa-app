@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { adService, AdCreative, AdSlot } from '@/services';
 import { useApp } from '@/store/AppContext';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, fonts, radius, spacing, typography } from '@/theme';
 
 interface AdSlotViewProps {
   slot: AdSlot;
@@ -77,6 +77,6 @@ const styles = StyleSheet.create({
   headline: { color: colors.text },
   body: { color: colors.textMuted },
   cta: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' },
-  ctaText: { color: colors.green, fontWeight: '700' },
+  ctaText: { color: colors.green, fontFamily: fonts.bodyBold },
   pressed: { opacity: 0.7 },
 });

@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { SCENARIO_VIBE } from '@/content/vibes';
 import { colors, radius, scenarioColors, spacing, typography } from '@/theme';
 import { Currency, ValuationScenario } from '@/types';
 import { formatCurrency, SCENARIO_HINT, SCENARIO_LABEL } from '@/utils/format';
@@ -47,7 +48,9 @@ export function ValueCard({
       ]}
     >
       <View style={styles.labelRow}>
-        <View style={[styles.dot, { backgroundColor: accent }]} />
+        <Text style={compact ? styles.emojiCompact : styles.emoji}>
+          {SCENARIO_VIBE[scenario].emoji}
+        </Text>
         <Text
           style={[typography.label, styles.label, compact && styles.labelCompact]}
           numberOfLines={1}
@@ -55,7 +58,7 @@ export function ValueCard({
           {SCENARIO_LABEL[scenario].toLocaleUpperCase('tr-TR')}
         </Text>
         {/* Dar üçlü satırda yıldız etiketi kırpıyor; vurgu zaten kenarlık ve renkle veriliyor. */}
-        {emphasized && !compact ? <Ionicons name="star" size={11} color={accent} /> : null}
+        {emphasized && !compact ? <Ionicons name="star" size={12} color={accent} /> : null}
       </View>
 
       <Text
@@ -119,7 +122,8 @@ const styles = StyleSheet.create({
   },
   compact: { padding: spacing.sm + 4, minHeight: 88, gap: spacing.xs },
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  dot: { width: 6, height: 6, borderRadius: 3 },
+  emoji: { fontSize: 15, lineHeight: 19 },
+  emojiCompact: { fontSize: 12, lineHeight: 15 },
   label: { color: colors.textMuted, flexShrink: 1 },
   labelCompact: { fontSize: 10, letterSpacing: 0.2 },
   hint: { color: colors.textFaint },

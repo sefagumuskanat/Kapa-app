@@ -24,14 +24,10 @@ import type { DonutSlice } from '@/components';
 import type { RootStackParamList, TabParamList } from '@/navigation/types';
 import { rankService } from '@/services';
 import { useApp } from '@/store/AppContext';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, fonts, radius, spacing, typography } from '@/theme';
 import { RankResult } from '@/types';
-import {
-  CATEGORY_LABEL,
-  confidenceLabel,
-  formatCurrency,
-  formatSignedCurrency,
-} from '@/utils/format';
+import { BRAND, confidenceVibe, EMPTY, resolveKapaTier } from '@/content/vibes';
+import { CATEGORY_LABEL, formatCurrency, formatSignedCurrency } from '@/utils/format';
 
 type Props = BottomTabScreenProps<TabParamList, 'Home'>;
 
@@ -88,15 +84,18 @@ export function HomeScreen({ navigation }: Props) {
 
   if (status === 'error') {
     return (
-      <Screen title="KAPAMETRE" subtitle="Varlığını ölç.">
-        <ErrorState description={error ?? 'Veriler yüklenemedi.'} onRetry={() => void reload()} />
+      <Screen title={BRAND.name} subtitle={BRAND.tagline}>
+        <ErrorState
+          description={error ?? 'Bir şeyler yüklenemedi. Bir daha deneyelim mi?'}
+          onRetry={() => void reload()}
+        />
       </Screen>
     );
   }
 
   if (status === 'loading' || (revaluating && !portfolio)) {
     return (
-      <Screen title="KAPAMETRE" subtitle="Varlığını ölç.">
+      <Screen title={BRAND.name} subtitle={BRAND.tagline}>
         <PortfolioSkeleton />
       </Screen>
     );
@@ -104,14 +103,14 @@ export function HomeScreen({ navigation }: Props) {
 
   if (status === 'empty' || assets.length === 0) {
     return (
-      <Screen title="KAPAMETRE" subtitle="Varlığını ölç." offline={offline}>
+      <Screen title={BRAND.name} subtitle={BRAND.tagline} offline={offline}>
         <EmptyState
-          icon="cube-outline"
-          title="Henüz varlık yok"
-          description="İlk varlığını ekle; Hızlı Satış, Normal Satış ve Tok Satıcı değerlerini hemen gör."
-          actionLabel="Varlık ekle"
+          emoji={EMPTY.home.emoji}
+          title={EMPTY.home.title}
+          description={EMPTY.home.line}
+          actionLabel="Bir şeyler ekle"
           onAction={() => root.navigate('AddAsset')}
-          secondaryActionLabel="Demo veriyi yükle"
+          secondaryActionLabel="Örnek listeyi yükle"
           onSecondaryAction={() => void loadDemoData()}
         />
       </Screen>
@@ -119,11 +118,13 @@ export function HomeScreen({ navigation }: Props) {
   }
 
   const totals = portfolio?.totals ?? { fast: 0, normal: 0, patient: 0 };
+  const tier = resolveKapaTier(totals.normal);
+  const confidence = confidenceVibe(portfolio?.averageConfidence ?? 0);
 
   return (
     <Screen
-      title="KAPAMETRE"
-      subtitle="Varlığını ölç."
+      title={BRAND.name}
+      subtitle={BRAND.tagline}
       offline={offline}
       onRefresh={() => void revaluate()}
       refreshing={revaluating}
@@ -138,9 +139,19 @@ export function HomeScreen({ navigation }: Props) {
         </Pressable>
       }
     >
-      {/* Toplam varlık — Normal Satış ana metriktir. */}
+      {/* Karne: "kaç paralık adamsın" sorusunun doğrudan cevabı. */}
       <Card elevated style={styles.totalCard}>
-        <Text style={[typography.label, styles.totalLabel]}>TOPLAM VARLIK · NORMAL SATIŞ</Text>
+        <View style={styles.verdictRow}>
+          <Text style={styles.verdictEmoji}>{tier.emoji}</Text>
+          <View style={styles.verdictText}>
+            <Text style={[typography.heading, styles.verdictTitle]}>{tier.title}</Text>
+            <Text style={[typography.caption, styles.verdictLine]}>{tier.line}</Text>
+          </View>
+        </View>
+
+        <View style={styles.verdictDivider} />
+
+        <Text style={[typography.label, styles.totalLabel]}>ELİNDEKİLERİN TOPLAMI</Text>
         <Text
           style={[typography.display, styles.totalValue]}
           numberOfLines={1}
@@ -169,21 +180,21 @@ export function HomeScreen({ navigation }: Props) {
             </View>
           ) : null}
           <Text style={[typography.caption, styles.assetCount]}>
-            {portfolio?.assetCount ?? 0} varlık
+            {portfolio?.assetCount ?? 0} parça eşya
           </Text>
         </View>
 
         {portfolio && portfolio.unknownCostAssetCount > 0 ? (
           <Text style={[typography.caption, styles.warning]}>
-            {portfolio.unknownCostAssetCount} varlığın edinim maliyeti bilinmiyor; kâr/zarar
-            yalnızca maliyeti bilinenler üzerinden hesaplandı.
+            🤔 {portfolio.unknownCostAssetCount} şeyin kaça alındığını bilmiyoruz, o yüzden
+            kâr/zarar sadece bildiklerimiz üzerinden.
           </Text>
         ) : null}
 
         <View style={styles.confidenceRow}>
-          <Ionicons name="pulse-outline" size={13} color={colors.textMuted} />
+          <Text style={styles.confidenceEmoji}>{confidence.emoji}</Text>
           <Text style={[typography.caption, styles.confidenceText]}>
-            Ortalama güven: {confidenceLabel(portfolio?.averageConfidence ?? 0)}
+            Genel olarak: {confidence.label.toLocaleLowerCase('tr-TR')}
           </Text>
         </View>
       </Card>
@@ -193,11 +204,11 @@ export function HomeScreen({ navigation }: Props) {
 
       {/* Kategori dağılımı */}
       <Card style={styles.chartCard}>
-        <Text style={[typography.subheading, styles.sectionTitle]}>Dağılım</Text>
+        <Text style={[typography.subheading, styles.sectionTitle]}>🍰 Paran nerede duruyor?</Text>
         <DonutChart
           slices={slices}
           centerValue={formatCurrency(totals.normal, 'TRY', true)}
-          centerLabel="Normal Satış"
+          centerLabel="toplam"
         />
       </Card>
 
@@ -213,8 +224,8 @@ export function HomeScreen({ navigation }: Props) {
 
       {!isPremium ? (
         <PaywallTeaser
-          title="Premium ile daha fazlası"
-          description="Detaylı sıralama, değerleme geçmişi ve reklamsız kullanım."
+          title="Premium’a bir bakıver"
+          description="Sıralamada tam olarak nerede olduğunu gör, reklamlardan kurtul."
           onPress={() => root.navigate('Paywall', { source: 'home' })}
         />
       ) : null}
@@ -222,9 +233,9 @@ export function HomeScreen({ navigation }: Props) {
       {/* Son varlıklar */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={[typography.subheading, styles.sectionTitle]}>Son varlıklar</Text>
+          <Text style={[typography.subheading, styles.sectionTitle]}>🆕 Son eklediklerin</Text>
           <Pressable accessibilityRole="button" onPress={() => navigation.navigate('Assets')}>
-            <Text style={[typography.caption, styles.link]}>Tümü</Text>
+            <Text style={[typography.caption, styles.link]}>Hepsi</Text>
           </Pressable>
         </View>
         <View style={styles.list}>
@@ -240,7 +251,7 @@ export function HomeScreen({ navigation }: Props) {
       </View>
 
       {portfolio ? (
-        <SourceStamp label="Değerler demo referans tablosundan hesaplandı" timestamp={portfolio.createdAt} />
+        <SourceStamp label="Rakamlar demo fiyat listesinden geldi" timestamp={portfolio.createdAt} />
       ) : null}
 
       <AdSlotView slot="home-footer" onPressCta={() => root.navigate('Paywall', { source: 'ad' })} />
@@ -253,8 +264,19 @@ export function HomeScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   headerAction: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   totalCard: { gap: spacing.sm },
-  totalLabel: { color: colors.textMuted },
+  verdictRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  verdictEmoji: { fontSize: 40, lineHeight: 48 },
+  verdictText: { flex: 1, gap: 2 },
+  verdictTitle: { color: colors.text },
+  verdictLine: { color: colors.textMuted },
+  verdictDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginVertical: spacing.xs,
+  },
+  totalLabel: { color: colors.textFaint },
   totalValue: { color: colors.green },
+  confidenceEmoji: { fontSize: 13, lineHeight: 18 },
   totalMetaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   gainPill: {
     flexDirection: 'row',
@@ -274,7 +296,7 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colors.text },
   section: { gap: spacing.sm },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  link: { color: colors.green, fontWeight: '600' },
+  link: { color: colors.green, fontFamily: fonts.bodySemi },
   list: { gap: spacing.sm },
 
   rankRow: {

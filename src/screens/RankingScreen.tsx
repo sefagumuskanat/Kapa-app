@@ -12,12 +12,12 @@ import {
   Disclaimer,
   EmptyState,
   PaywallTeaser,
-  RankBadge,
   Skeleton,
 } from '@/components';
 import { Screen } from '@/components/Screen';
 import type { RootStackParamList, TabParamList } from '@/navigation/types';
-import { COHORT_LABEL, rankService } from '@/services';
+import { rankService } from '@/services';
+import { COHORT_VIBE, RANK_PITCH } from '@/content/vibes';
 import { useApp } from '@/store/AppContext';
 import { colors, radius, spacing, typography } from '@/theme';
 import { RankResult } from '@/types';
@@ -51,18 +51,19 @@ export function RankingScreen({}: Props) {
   }, [consent.granted, portfolio, isPremium]);
 
   const normalValue = portfolio?.totals.normal ?? 0;
+  const vibe = rank ? COHORT_VIBE[rank.cohort] : null;
 
   if (!consent.granted) {
     return (
-      <Screen title="Sıralama" subtitle="İsteğe bağlı, kapalı" offline={offline}>
+      <Screen title="Sıralama" subtitle="Şu an kapalı" offline={offline}>
         <EmptyState
-          icon="lock-closed-outline"
-          title="Sıralama kapalı"
-          description="Katılım tamamen isteğe bağlıdır. Açarsan yalnızca Normal Satış toplamın takma bir kimlikle kohort hesabına katılır."
+          emoji={RANK_PITCH.emoji}
+          title={RANK_PITCH.title}
+          description={RANK_PITCH.line}
         />
 
         <Card style={styles.card}>
-          <Text style={[typography.subheading, styles.cardTitle]}>Açarsan ne paylaşılır?</Text>
+          <Text style={[typography.subheading, styles.cardTitle]}>✅ Açarsan bunlar gider</Text>
           {SHARED_ITEMS.map((item) => (
             <View key={item} style={styles.bulletRow}>
               <Ionicons name="checkmark-circle-outline" size={16} color={colors.green} />
@@ -70,7 +71,7 @@ export function RankingScreen({}: Props) {
             </View>
           ))}
           <View style={styles.divider} />
-          <Text style={[typography.subheading, styles.cardTitle]}>Asla paylaşılmaz</Text>
+          <Text style={[typography.subheading, styles.cardTitle]}>🚫 Bunlar asla gitmez</Text>
           {NEVER_SHARED.map((item) => (
             <View key={item} style={styles.bulletRow}>
               <Ionicons name="close-circle-outline" size={16} color={colors.red} />
@@ -80,7 +81,7 @@ export function RankingScreen({}: Props) {
         </Card>
 
         <Button
-          label="Sıralamaya katıl"
+          label="Varım, sok beni sıralamaya"
           onPress={() => {
             setToggling(true);
             void setRankConsent(true).finally(() => setToggling(false));
@@ -89,13 +90,13 @@ export function RankingScreen({}: Props) {
           size="lg"
           fullWidth
         />
-        <Disclaimer text="Sıralama bir yarışma veya sosyal özellik değildir; kullanıcı listesi gösterilmez." />
+        <Disclaimer text="Burası bir yarışma değil, sosyal medya hiç değil. Kimsenin listesini göremezsin, kimse de seninkini göremez." />
       </Screen>
     );
   }
 
   return (
-    <Screen title="Sıralama" subtitle="Kohort bazlı, kimliksiz" offline={offline}>
+    <Screen title="Sıralama" subtitle="İsimsiz, gruplu" offline={offline}>
       {loading ? (
         <View style={styles.skeletonGroup}>
           <Skeleton height={120} r={radius.xl} />
@@ -103,33 +104,30 @@ export function RankingScreen({}: Props) {
         </View>
       ) : (
         <Card elevated style={styles.card}>
-          <RankBadge rank={rank} consentGranted={consent.granted} />
-          <Text style={[typography.title, styles.cohortTitle]}>
-            {rank ? COHORT_LABEL[rank.cohort] : '—'} kohortu
-          </Text>
+          <Text style={styles.cohortEmoji}>{vibe?.emoji ?? '🏆'}</Text>
+          <Text style={[typography.title, styles.cohortTitle]}>{vibe?.title ?? '—'}</Text>
           <Text style={[typography.body, styles.muted]}>
-            {rank?.cohortSizeBucket ?? '—'} · benzer büyüklükteki portföylerle karşılaştırılıyor.
+            {vibe?.line} Senin ligde {rank?.cohortSizeBucket ?? '—'} var.
           </Text>
 
           <View style={styles.divider} />
 
           <View style={styles.metricRow}>
-            <Text style={[typography.body, styles.muted]}>Karşılaştırılan değer</Text>
+            <Text style={[typography.body, styles.muted]}>Yarışa giren rakam</Text>
             <Text style={[typography.bodyStrong, styles.metricValue]}>
               {formatCurrency(normalValue, 'TRY', true)}
             </Text>
           </View>
           <Text style={[typography.caption, styles.faint]}>
-            Yalnızca Normal Satış toplamı kullanılır. Hızlı Satış ve Tok Satıcı değerleri
-            sıralamaya girmez.
+Sadece “normal satarsan” rakamın yarışıyor. Diğer iki senaryo burada işe karışmıyor.
           </Text>
 
           <View style={styles.divider} />
 
           <View style={styles.metricRow}>
-            <Text style={[typography.body, styles.muted]}>Dilimin</Text>
+            <Text style={[typography.body, styles.muted]}>Nerelerdesin</Text>
             <Text style={[typography.bodyStrong, styles.metricValue]}>
-              {rank ? (rank.detailLocked ? 'Premium ile görünür' : rank.maskedPercentile) : '—'}
+              {rank ? (rank.detailLocked ? '🔒 Premium’da' : rank.maskedPercentile) : '—'}
             </Text>
           </View>
         </Card>
@@ -137,16 +135,16 @@ export function RankingScreen({}: Props) {
 
       {rank?.detailLocked ? (
         <PaywallTeaser
-          title="Detaylı sıralamayı aç"
-          description="Kohort içindeki dilimini ve zaman içindeki değişimini gör."
+          title="Tam olarak nerede olduğunu gör"
+          description="Grubun neresindesin, zamanla ne oldu — hepsi premium’da."
           onPress={() => root.navigate('Paywall', { source: 'ranking' })}
         />
       ) : null}
 
       <Card style={styles.card}>
-        <Text style={[typography.subheading, styles.cardTitle]}>Gönderilen veri</Text>
+        <Text style={[typography.subheading, styles.cardTitle]}>📤 Giden veri bu kadar</Text>
         <Text style={[typography.caption, styles.faint]}>
-          Sunucuya giden payload'ın tamamı budur:
+          Sunucuya gönderdiğimiz her şey aşağıda. Fazlası yok:
         </Text>
         {Object.entries(rankService.describeOutboundPayload(normalValue, consent)).map(
           ([key, value]) => (
@@ -159,7 +157,7 @@ export function RankingScreen({}: Props) {
       </Card>
 
       <Button
-        label="Sıralamadan çık"
+        label="Beni sıralamadan çıkar"
         onPress={() => {
           setToggling(true);
           void setRankConsent(false).finally(() => setToggling(false));
@@ -173,27 +171,28 @@ export function RankingScreen({}: Props) {
         slot="ranking-footer"
         onPressCta={() => root.navigate('Paywall', { source: 'ranking-ad' })}
       />
-      <Disclaimer text="Sıralama tahmini değerlere dayanır ve yatırım tavsiyesi değildir." />
+      <Disclaimer text="Sıralama tahmini rakamlara göre. Yani bununla övünmek serbest ama fazla ciddiye alma. 🙂" />
     </Screen>
   );
 }
 
 const SHARED_ITEMS = [
-  'Takma kimlik (cihazda üretilir, hesabınla ilişkilendirilmez)',
-  'Normal Satış toplamının kova etiketi (ör. 250K-1.5M)',
-  'Kohort adı',
+  'Uydurma bir takma ad (telefonunda üretilir, seninle bağı yok)',
+  'Toplamının hangi aralıkta olduğu — ör. “250B-1,5M” (kesin rakam bile değil)',
+  'Hangi gruptasın',
 ];
 
 const NEVER_SHARED = [
-  'Varlık listesi, isimleri veya notların',
-  'Kategori kırılımın',
-  'Adın, e-postan, konumun veya cihaz kimliğin',
-  'Hızlı Satış ve Tok Satıcı değerlerin',
+  'Neyin var, ne yazdın, ne not düştün',
+  'Hangi kategoride ne kadarın olduğu',
+  'Adın, e-postan, nerede oturduğun, telefonun kim olduğu',
+  'Diğer iki senaryodaki rakamların',
 ];
 
 const styles = StyleSheet.create({
   card: { gap: spacing.sm },
   cardTitle: { color: colors.text },
+  cohortEmoji: { fontSize: 40, lineHeight: 48 },
   cohortTitle: { color: colors.text },
   muted: { color: colors.textMuted },
   faint: { color: colors.textFaint },

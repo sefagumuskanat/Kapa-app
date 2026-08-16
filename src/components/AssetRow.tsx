@@ -4,8 +4,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing, TOUCH_TARGET, typography } from '@/theme';
 import { Asset, ValuationSnapshot } from '@/types';
+import { CATEGORY_EMOJI } from '@/content/vibes';
 import {
-  CATEGORY_ICON,
   CATEGORY_LABEL,
   CONDITION_LABEL,
   formatCurrency,
@@ -34,11 +34,7 @@ export function AssetRow({ asset, valuation, onPress }: AssetRowProps) {
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
     >
       <View style={styles.iconBox}>
-        <Ionicons
-          name={(CATEGORY_ICON[asset.category] as keyof typeof Ionicons.glyphMap) ?? 'cube-outline'}
-          size={20}
-          color={colors.textMuted}
-        />
+        <Text style={styles.emoji}>{CATEGORY_EMOJI[asset.category]}</Text>
       </View>
 
       <View style={styles.body}>
@@ -55,7 +51,7 @@ export function AssetRow({ asset, valuation, onPress }: AssetRowProps) {
           {valuation ? formatCurrency(valuation.normalValue, valuation.currency, true) : '—'}
         </Text>
         <Text style={[typography.caption, { color: gainTone }]} numberOfLines={1}>
-          {gain == null ? 'maliyet yok' : formatSignedCurrency(gain)}
+          {gain == null ? 'kaça aldın?' : formatSignedCurrency(gain)}
         </Text>
       </View>
 
@@ -85,13 +81,14 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.7 },
   iconBox: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: radius.md,
     backgroundColor: colors.cardElevated,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  emoji: { fontSize: 22, lineHeight: 28 },
   body: { flex: 1, gap: 2 },
   name: { color: colors.text },
   meta: { color: colors.textMuted },

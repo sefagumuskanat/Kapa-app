@@ -20,6 +20,7 @@ import type { RootStackParamList, TabParamList } from '@/navigation/types';
 import { useApp } from '@/store/AppContext';
 import { colors, spacing, typography } from '@/theme';
 import { AssetCategory } from '@/types';
+import { CATEGORY_EMOJI, EMPTY } from '@/content/vibes';
 import { CATEGORY_LABEL, formatCurrency, SCENARIO_LABEL } from '@/utils/format';
 
 type Props = BottomTabScreenProps<TabParamList, 'Assets'>;
@@ -68,15 +69,15 @@ export function AssetListScreen({}: Props) {
 
   if (status === 'error') {
     return (
-      <Screen title="Varlıklar">
-        <ErrorState description={error ?? 'Varlıklar yüklenemedi.'} onRetry={() => void reload()} />
+      <Screen title="Neyin var">
+        <ErrorState description={error ?? 'Liste yüklenemedi.'} onRetry={() => void reload()} />
       </Screen>
     );
   }
 
   if (status === 'loading') {
     return (
-      <Screen title="Varlıklar">
+      <Screen title="Neyin var">
         <ListSkeleton rows={5} />
       </Screen>
     );
@@ -84,14 +85,14 @@ export function AssetListScreen({}: Props) {
 
   if (assets.length === 0) {
     return (
-      <Screen title="Varlıklar" offline={offline}>
+      <Screen title="Neyin var" offline={offline}>
         <EmptyState
-          icon="layers-outline"
-          title="Liste boş"
-          description="Eklediğin her varlık burada Normal Satış değeriyle listelenir."
-          actionLabel="Varlık ekle"
+          emoji={EMPTY.assets.emoji}
+          title={EMPTY.assets.title}
+          description={EMPTY.assets.line}
+          actionLabel="Bir şeyler ekle"
           onAction={() => root.navigate('AddAsset')}
-          secondaryActionLabel="Demo veriyi yükle"
+          secondaryActionLabel="Örnek listeyi yükle"
           onSecondaryAction={() => void loadDemoData()}
         />
       </Screen>
@@ -100,8 +101,8 @@ export function AssetListScreen({}: Props) {
 
   return (
     <Screen
-      title="Varlıklar"
-      subtitle={`${filtered.length} varlık · ${formatCurrency(visibleTotal, 'TRY', true)}`}
+      title="Neyin var"
+      subtitle={`${filtered.length} parça · ${formatCurrency(visibleTotal, 'TRY', true)} eder`}
       offline={offline}
       onRefresh={() => void revaluate()}
       refreshing={revaluating}
@@ -117,7 +118,7 @@ export function AssetListScreen({}: Props) {
       }
     >
       <Input
-        placeholder="Varlık ara"
+        placeholder="🔍 Ne arıyorsun?"
         value={query}
         onChangeText={setQuery}
         autoCorrect={false}
@@ -131,7 +132,7 @@ export function AssetListScreen({}: Props) {
         contentContainerStyle={styles.chips}
       >
         <Chip
-          label="Tümü"
+          label="Hepsi"
           selected={category === 'all'}
           onPress={() => setCategory('all')}
           tone="green"
@@ -139,7 +140,7 @@ export function AssetListScreen({}: Props) {
         {categories.map((item) => (
           <Chip
             key={item}
-            label={CATEGORY_LABEL[item]}
+            label={`${CATEGORY_EMOJI[item]} ${CATEGORY_LABEL[item]}`}
             selected={category === item}
             onPress={() => setCategory(item)}
             tone="green"
@@ -151,21 +152,21 @@ export function AssetListScreen({}: Props) {
         value={sort}
         onChange={setSort}
         segments={[
-          { value: 'value-desc', label: 'Yüksek → Düşük' },
-          { value: 'value-asc', label: 'Düşük → Yüksek' },
-          { value: 'recent', label: 'Son eklenen' },
+          { value: 'value-desc', label: '💰 Pahalıdan' },
+          { value: 'value-asc', label: '🪶 Ucuzdan' },
+          { value: 'recent', label: '🆕 Yeniden' },
         ]}
       />
 
       <Text style={[typography.caption, styles.sortHint]}>
-        Sıralama {SCENARIO_LABEL.normal} değerine göre yapılır.
+        Sıralama {SCENARIO_LABEL.normal.toLocaleLowerCase('tr-TR')} rakamına göre.
       </Text>
 
       {filtered.length === 0 ? (
         <EmptyState
-          icon="search-outline"
-          title="Sonuç yok"
-          description="Aramanı veya kategori filtresini değiştirmeyi dene."
+          emoji={EMPTY.search.emoji}
+          title={EMPTY.search.title}
+          description={EMPTY.search.line}
           actionLabel="Filtreleri temizle"
           onAction={() => {
             setQuery('');

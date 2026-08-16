@@ -1,9 +1,13 @@
 # KAPAMETRE
 
-> **Varlığını ölç.**
+> **Kaç paralık adamsın?**
 
-Kullanıcının sahip olduğu varlıkların bugünkü nakit karşılığını **üç senaryoda** hesaplayan,
-privacy-first, Türkiye pazarına yönelik mobil uygulama. Expo + React Native + TypeScript.
+**KAPA = “Kaç Paralık Adam”.** KAPAMETRE de tam olarak onu ölçüyor.
+
+Neyin var yazıyorsun, uygulama üç ihtimalle kaç para ettiğini söylüyor ve sana bir karne
+kesiyor. Hedef kitle ciddi yatırımcı değil — merakından ya da eğlence olsun diye açan
+bireysel kullanıcı. Ton buna göre: mahalle ağzı, şakacı, samimi.
+Expo + React Native + TypeScript.
 
 Bu depo **gerçek backend gerektirmeyen, tamamen tıklanabilir bir demo** üretir. Tüm servisler
 mock'tur; hiçbir canlı fiyat kaynağı, scraping veya gerçek API anahtarı içermez.
@@ -23,13 +27,19 @@ KAPAMETRE **değildir**:
 KAPAMETRE **sadece** şunu yapar: kullanıcının varlıklarını *metin tabanlı* olarak kaydeder ve
 3 senaryoda değerler.
 
+### Tonun tek kuralı
+
+Şaka dürüstlüğü bozmaz. Değerin tahmin olduğu, yatırım tavsiyesi olmadığı ve verinin cihazda
+kaldığı bilgisi espriyle yumuşatılır ama **asla gizlenmez**. Örneğin bir kalemin maliyeti
+bilinmiyorsa uygulama uydurmaz, "kaça aldın?" der ve kâr/zarar hesaplamaz.
+
 ## Üç değerleme senaryosu
 
 | Senaryo | Anlamı | Rolü |
 | --- | --- | --- |
-| **Hızlı Satış** | Bugün elden çıkarırsan | likidite iskontosu |
-| **Normal Satış** | Makul sürede satarsan | **ANA METRİK** — toplam ve sıralama bunu kullanır |
-| **Tok Satıcı** | Beklemeye razıysan | sabır primi |
+| 🏃 **Hızlı Satış** | "Acil param lazım" dersen | likidite iskontosu |
+| 🤝 **Normal Satış** | Normal şartlarda satarsan | **ANA METRİK** — karne ve sıralama bunu kullanır |
+| 🪑 **Tok Satıcı** | "Alıcıyı beklerim abi" dersen | sabır primi |
 
 Dördüncü bir değer gösterilmez. Her değer **zorunlu olarak** güven skoru (`confidenceScore`),
 kaynak etiketi ve zaman damgası ile birlikte sunulur — sahte kesinlik üretilmez.
@@ -55,6 +65,7 @@ pırlanta yüzük). Ayarlar → Demo bölümünden yeniden yüklenebilir.
 
 ```
 src/
+├─ content/       vibes.ts — uygulamanın ağzı: tüm metin, emoji ve karne tonu tek dosyada
 ├─ types/         Domain modelleri (Asset, ValuationSnapshot, RankConsent, …)
 ├─ data/          storage.ts (şifreli yerel depo soyutlaması), catalog.ts, demoData.ts
 ├─ services/      Modüler servis katmanı — hepsi arayüz + mock implementasyon
@@ -134,14 +145,39 @@ Bir varlığın partilerinden **herhangi biri** maliyetsizse toplam maliyet iddi
 
 ---
 
+## Karne sistemi
+
+Ana ekranın kahramanı, toplam Normal Satış değerine göre kesilen karne:
+
+| Eşik | Karne |
+| --- | --- |
+| 0 ₺ | 🕳️ Cepte delik var |
+| 25.000 ₺ | 🙂 İdare eder |
+| 150.000 ₺ | 😌 Fena değilmişsin |
+| 750.000 ₺ | 😎 Adamın malı var |
+| 3.000.000 ₺ | 🤑 Kodaman |
+| 15.000.000 ₺ | 👑 Efsane |
+
+Sıralama kohortları da aynı dille adlandırılır: *Fakir ama gururlu · Yavaş yavaş toparlıyor ·
+Hali vakti yerinde · Kodamanlar ligi.*
+
+## Kutlamalar
+
+Yeni bir şey eklendiğinde konfetili bir kutlama ekranı çıkar — *"Allah bereket versin! Malına
+mal kattın yine."* Mesaj rastgele seçilir ama **eklenen şeyin değerine göre** üç havuzdan
+birinden gelir; 3.000 ₺'lik bir kaleme "yuh artık, sen bu işi ciddiye almışsın" demek komik
+değil, sahte olur. Değer hesaplanamadıysa ayrı bir ton kullanılır ve yalandan övülmez.
+
+Düzenlemede kutlama çıkmaz — yeni bir şey kazanılmadı.
+
 ## Ekranlar
 
 | # | Ekran | İçerik |
 | --- | --- | --- |
-| 1 | Onboarding | Slogan, 3 tanıtım adımı, 13+ yaş kapısı, ayrı sıralama rızası |
-| 2 | Home | Toplam varlık, 3 senaryo kartı, donut grafik, son varlıklar |
-| 3 | Asset List | Kategori filtresi, arama, sıralama, isim + değer + kâr/zarar |
-| 4 | Add Asset | 4 adım: kategori → katalog/manuel → detay → edinim partisi |
+| 1 | Onboarding | KAPA açılımı, 3 tanıtım adımı, 13+ yaş kapısı, ayrı sıralama rızası |
+| 2 | Karnem (Home) | Karne kartı, toplam, 3 senaryo, donut grafik, son eklenenler |
+| 3 | Neyim var (Liste) | Kategori filtresi, arama, sıralama, isim + değer + kâr/zarar |
+| 4 | Ekleme | 4 adım: kategori → katalog/manuel → detay → alım · sonunda kutlama |
 | 5 | Asset Detail | 3 değer kartı, güven + kaynak, edinim kırılımı, parçalar, düzenle |
 | 6 | Ranking | Maskeli sıralama, premium teaser, gönderilen veri şeffaflığı |
 | 7 | Paywall | Mock fiyatlar, restore purchases stub |
@@ -153,11 +189,28 @@ Her ekran **loading skeleton, empty state, error state ve offline** durumların�
 
 ## Tasarım sistemi
 
-Dark-first. Palet: arka plan `#0B1220`, kart `#141C2B`, yeşil `#29D391`, altın `#F4C766`,
-kırmızı `#FF6B6B`, metin `#F7F9FC`. 8px boşluk sistemi, 16–20 köşe yarıçapı,
-44px minimum dokunma alanı. Ürün fotoğrafı yoktur; görsel yalnızca belge OCR ekranındadır.
+Dark ama **sıcak** — soğuk lacivert "bankacı" paleti yerine üzüm moru zemin ve canlı vurgular.
 
-Senaryo renk kodlaması sabittir: Hızlı = kırmızı, Normal = yeşil, Tok = altın.
+| Rol | Renk |
+| --- | --- |
+| Zemin | `#160E27` |
+| Kart | `#241838` · yükseltilmiş `#33244D` |
+| Para yeşili | `#37E39B` |
+| Sikke sarısı | `#FFC63C` |
+| Mercan | `#FF6B81` |
+| Mor / turkuaz pop | `#B36BFF` · `#4EC5FF` |
+| Metin | `#FFF6EC` (sıcak beyaz) |
+
+**Yazı tipi:** başlıklar Baloo 2 (tombul, yuvarlak, oyuncu), gövde Nunito. İkisi de Türkçe
+karakterleri tam destekler. Özel yazı tipinde `fontWeight` çalışmadığı için kalınlık her yerde
+aile değiştirilerek veriliyor.
+
+**Şekil dili:** 8px boşluk sistemi, 20–32 köşe yarıçapı, hap şeklinde butonlar, 44px minimum
+dokunma alanı. İkonlar büyük ölçüde emoji — vektör ikon yalnızca navigasyon ve ikincil
+göstergelerde kaldı. Ürün fotoğrafı yoktur; görsel yalnızca belge OCR ekranındadır.
+
+Senaryo renk kodlaması sabittir: Hızlı = mercan, Normal = yeşil, Tok = sarı. Grafik dilimleri
+ayrı bir palet sırası kullanır, böylece yan yana iki benzer ton düşmez.
 
 ---
 
@@ -168,9 +221,9 @@ npm run typecheck                      # tsc --noEmit — temiz
 npx expo export --platform android     # Metro bundle — başarılı
 ```
 
-Tüm akışlar (onboarding → home → liste → detay → varlık ekleme/kaydetme → sıralama rızası →
-paywall satın alma → OCR tarama) web export üzerinde headless tarayıcıda uçtan uca
-çalıştırılarak doğrulanmıştır; konsol hatası üretmez.
+Tüm akışlar (onboarding → karne → liste → detay → varlık ekleme/kaydetme → **kutlama ekranı**
+→ sıralama rızası → paywall satın alma → OCR tarama) web export üzerinde headless tarayıcıda
+uçtan uca çalıştırılarak doğrulanmıştır; konsol hatası üretmez.
 
 ## Sınırlar
 

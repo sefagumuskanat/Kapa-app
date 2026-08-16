@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 
-import { colors, radius, spacing, typography } from '@/theme';
+import { chartPalette, colors, fonts, radius, spacing, typography } from '@/theme';
 
 export interface DonutSlice {
   key: string;
@@ -119,16 +119,8 @@ export function DonutChart({
   );
 }
 
-/** Palet içi tonlar — marka renklerinin doygunluk varyantları. */
-const SEGMENT_PALETTE = [
-  colors.green,
-  colors.gold,
-  'rgba(41, 211, 145, 0.55)',
-  colors.red,
-  'rgba(244, 199, 102, 0.55)',
-  'rgba(255, 107, 107, 0.55)',
-  'rgba(247, 249, 252, 0.35)',
-];
+/** Her dilim belirgin şekilde farklı — yan yana iki benzer ton düşmez. */
+const SEGMENT_PALETTE = chartPalette;
 
 /** Tek satırlık yatay dağılım çubuğu — donut'ın kompakt alternatifi. */
 export function BarBreakdown({ slices }: { slices: DonutSlice[] }) {
@@ -161,7 +153,7 @@ const styles = StyleSheet.create({
   legendRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendLabel: { flex: 1, color: colors.textMuted },
-  legendValue: { color: colors.text, fontWeight: '600' },
+  legendValue: { color: colors.text, fontFamily: fonts.bodySemi },
   bar: {
     flexDirection: 'row',
     height: 8,

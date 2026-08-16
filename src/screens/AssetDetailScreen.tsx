@@ -15,7 +15,8 @@ import {
 import { Screen } from '@/components/Screen';
 import type { RootStackParamList } from '@/navigation/types';
 import { useApp } from '@/store/AppContext';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, fonts, radius, spacing, typography } from '@/theme';
+import { DELETE_ASSET } from '@/content/vibes';
 import { AcquisitionSource } from '@/types';
 import {
   CATEGORY_LABEL,
@@ -50,8 +51,8 @@ export function AssetDetailScreen({ navigation, route }: Props) {
     return (
       <Screen title="Varlık" onBack={() => navigation.goBack()}>
         <ErrorState
-          title="Varlık bulunamadı"
-          description="Bu varlık silinmiş olabilir."
+          title="Böyle bir şeyin yok"
+          description="Silinmiş olabilir. Listeye dönelim mi?"
           onRetry={() => navigation.goBack()}
         />
       </Screen>
@@ -60,12 +61,12 @@ export function AssetDetailScreen({ navigation, route }: Props) {
 
   const confirmDelete = () => {
     Alert.alert(
-      'Varlığı sil',
-      `"${asset.name}" cihazından kalıcı olarak silinecek. Bu işlem geri alınamaz.`,
+      DELETE_ASSET.title,
+      DELETE_ASSET.body(asset.name),
       [
-        { text: 'Vazgeç', style: 'cancel' },
+        { text: DELETE_ASSET.cancel, style: 'cancel' },
         {
-          text: 'Sil',
+          text: DELETE_ASSET.confirm,
           style: 'destructive',
           onPress: () => {
             void deleteAsset(asset.id).then(() => navigation.goBack());
@@ -114,7 +115,7 @@ export function AssetDetailScreen({ navigation, route }: Props) {
 
       {/* Güven skoru + kaynak — sahte kesinlik yasağının görünür karşılığı. */}
       <Card style={styles.card}>
-        <Text style={[typography.subheading, styles.cardTitle]}>Güven ve kaynak</Text>
+        <Text style={[typography.subheading, styles.cardTitle]}>🎯 Ne kadar eminiz?</Text>
         <ConfidenceBar
           score={valuation?.confidenceScore ?? 0}
           factors={valuation?.confidenceFactors}
@@ -126,11 +127,11 @@ export function AssetDetailScreen({ navigation, route }: Props) {
 
       {/* Edinim kırılımı */}
       <Card style={styles.card}>
-        <Text style={[typography.subheading, styles.cardTitle]}>Edinim kırılımı</Text>
+        <Text style={[typography.subheading, styles.cardTitle]}>🧾 Kaça almıştın</Text>
 
         {asset.lots.length === 0 ? (
           <Text style={[typography.body, styles.muted]}>
-            Edinim partisi eklenmemiş. Kâr/zarar hesaplanamaz.
+            Alım bilgisi girmemişsin. O yüzden kâr mı zarar mı, bilemiyoruz.
           </Text>
         ) : (
           <View style={styles.lotList}>
@@ -138,7 +139,7 @@ export function AssetDetailScreen({ navigation, route }: Props) {
               <View key={lot.id} style={styles.lotRow}>
                 <View style={styles.lotBody}>
                   <Text style={[typography.bodyStrong, styles.lotTitle]}>
-                    Parti {index + 1} · {lot.quantity} {UNIT_LABEL[asset.unit]}
+                    {index + 1}. alım · {lot.quantity} {UNIT_LABEL[asset.unit]}
                   </Text>
                   <Text style={[typography.caption, styles.muted]}>
                     {formatDate(lot.acquiredAt)} · {SOURCE_LABEL[lot.source]}
@@ -152,7 +153,7 @@ export function AssetDetailScreen({ navigation, route }: Props) {
                   ]}
                 >
                   {lot.unitCost == null
-                    ? 'bilinmiyor'
+                    ? 'meçhul'
                     : formatCurrency(lot.unitCost * lot.quantity, lot.currency, true)}
                 </Text>
               </View>
@@ -163,16 +164,16 @@ export function AssetDetailScreen({ navigation, route }: Props) {
         <View style={styles.divider} />
 
         <View style={styles.summaryRow}>
-          <Text style={[typography.body, styles.muted]}>Toplam maliyet</Text>
+          <Text style={[typography.body, styles.muted]}>Cebinden çıkan</Text>
           <Text style={[typography.bodyStrong, styles.summaryValue]}>
             {valuation?.acquisitionCost == null
-              ? 'Hesaplanamıyor'
+              ? 'Bilmiyoruz'
               : formatCurrency(valuation.acquisitionCost)}
           </Text>
         </View>
 
         <View style={styles.summaryRow}>
-          <Text style={[typography.body, styles.muted]}>Normal Satış farkı</Text>
+          <Text style={[typography.body, styles.muted]}>Kâr mı, zarar mı?</Text>
           <Text
             style={[
               typography.bodyStrong,
@@ -194,7 +195,7 @@ export function AssetDetailScreen({ navigation, route }: Props) {
 
         {valuation?.acquisitionCost == null ? (
           <Text style={[typography.caption, styles.warning]}>
-            Partilerden en az birinin maliyeti bilinmediği için toplam maliyet iddia edilmiyor.
+            🤷 Alımlardan en az birinin fiyatını bilmiyoruz. Uydurmaktansa söylememeyi tercih ediyoruz.
           </Text>
         ) : null}
       </Card>
@@ -202,7 +203,7 @@ export function AssetDetailScreen({ navigation, route }: Props) {
       {/* Alt parçalar */}
       {asset.components.length > 0 ? (
         <Card style={styles.card}>
-          <Text style={[typography.subheading, styles.cardTitle]}>Parçalar</Text>
+          <Text style={[typography.subheading, styles.cardTitle]}>🧩 Yanında gelenler</Text>
           {asset.components.map((component) => (
             <View key={component.id} style={styles.componentRow}>
               <Ionicons name="git-branch-outline" size={16} color={colors.textFaint} />
@@ -221,7 +222,7 @@ export function AssetDetailScreen({ navigation, route }: Props) {
       {/* Bağlı belgeler */}
       <Card style={styles.card}>
         <View style={styles.cardHeader}>
-          <Text style={[typography.subheading, styles.cardTitle]}>Belgeler</Text>
+          <Text style={[typography.subheading, styles.cardTitle]}>🧾 Belgeler</Text>
           <Pressable
             accessibilityRole="button"
             onPress={() => navigation.navigate('Ocr', { linkedAssetId: asset.id })}
@@ -231,7 +232,7 @@ export function AssetDetailScreen({ navigation, route }: Props) {
         </View>
         {linkedDocuments.length === 0 ? (
           <Text style={[typography.caption, styles.muted]}>
-            Bağlı belge yok. Taranan belgeler yalnızca cihazında kalır.
+            Belge yok. Faturayı sakladıysan tara, bir gün lazım olur.
           </Text>
         ) : (
           linkedDocuments.map((document) => (
@@ -250,19 +251,19 @@ export function AssetDetailScreen({ navigation, route }: Props) {
 
       {asset.notes ? (
         <Card style={styles.card}>
-          <Text style={[typography.subheading, styles.cardTitle]}>Not</Text>
+          <Text style={[typography.subheading, styles.cardTitle]}>📝 Notun</Text>
           <Text style={[typography.body, styles.muted]}>{asset.notes}</Text>
         </Card>
       ) : null}
 
       <Button
-        label="Varlığı düzenle"
+        label="Düzenle"
         onPress={() => navigation.navigate('AddAsset', { assetId: asset.id })}
         variant="secondary"
         icon="create-outline"
         fullWidth
       />
-      <Button label="Varlığı sil" onPress={confirmDelete} variant="danger" icon="trash-outline" fullWidth />
+      <Button label="Sil gitsin" onPress={confirmDelete} variant="danger" icon="trash-outline" fullWidth />
 
       <Disclaimer />
     </Screen>
@@ -278,7 +279,7 @@ const styles = StyleSheet.create({
   cardTitle: { color: colors.text },
   muted: { color: colors.textMuted },
   warning: { color: colors.gold },
-  link: { color: colors.green, fontWeight: '600' },
+  link: { color: colors.green, fontFamily: fonts.bodySemi },
 
   lotList: { gap: spacing.sm },
   lotRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

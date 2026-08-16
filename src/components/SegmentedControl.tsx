@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing, TOUCH_TARGET, typography } from '@/theme';
+import { TOUCH_TARGET, colors, fonts, radius, spacing, typography } from '@/theme';
 
 export interface Segment<T extends string> {
   value: T;
@@ -42,7 +42,7 @@ export function SegmentedControl<T extends string>({
               style={[
                 typography.caption,
                 styles.label,
-                selected && { color: accent, fontWeight: '700' },
+                selected && { color: accent, fontFamily: fonts.bodyBold },
               ]}
               numberOfLines={1}
             >

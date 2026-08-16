@@ -6,16 +6,24 @@ import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View
 import {
   Button,
   Card,
+  CelebrationOverlay,
   Chip,
   Disclaimer,
   Input,
   SegmentedControl,
 } from '@/components';
 import { Screen } from '@/components/Screen';
+import {
+  CATEGORY_EMOJI,
+  Celebration,
+  CONDITION_EMOJI,
+  pickCelebration,
+  UNKNOWN_VALUE_CELEBRATION,
+} from '@/content/vibes';
 import type { RootStackParamList } from '@/navigation/types';
-import { catalogService, FREE_ASSET_LIMIT } from '@/services';
+import { catalogService, FREE_ASSET_LIMIT, valuationService } from '@/services';
 import { useApp } from '@/store/AppContext';
-import { colors, radius, spacing, TOUCH_TARGET, typography } from '@/theme';
+import { TOUCH_TARGET, colors, fonts, radius, spacing, typography } from '@/theme';
 import {
   AcquisitionLot,
   AcquisitionSource,
@@ -26,7 +34,7 @@ import {
   MeasurementUnit,
 } from '@/types';
 import { createId, nowIso } from '@/utils/id';
-import { CATEGORY_ICON, CATEGORY_LABEL, CONDITION_LABEL, UNIT_LABEL } from '@/utils/format';
+import { CATEGORY_LABEL, CONDITION_LABEL, UNIT_LABEL } from '@/utils/format';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddAsset'>;
 
@@ -59,7 +67,7 @@ const SOURCE_LABEL: Record<AcquisitionSource, string> = {
 
 export function AddAssetScreen({ navigation, route }: Props) {
   const editingId = route.params?.assetId;
-  const { assets, addAsset, updateAsset, isPremium } = useApp();
+  const { assets, addAsset, updateAsset, isPremium, portfolio } = useApp();
   const editing = useMemo(
     () => assets.find((asset) => asset.id === editingId) ?? null,
     [assets, editingId],
@@ -94,6 +102,8 @@ export function AddAssetScreen({ navigation, route }: Props) {
 
   const [saving, setSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [celebration, setCelebration] = useState<Celebration | null>(null);
+  const [celebratedValue, setCelebratedValue] = useState<number | null>(null);
 
   const atFreeLimit = !isPremium && !editing && assets.length >= FREE_ASSET_LIMIT;
 
@@ -121,12 +131,12 @@ export function AddAssetScreen({ navigation, route }: Props) {
   const addLot = () => {
     const parsedQuantity = parseNumber(lotQuantity);
     if (parsedQuantity == null || parsedQuantity <= 0) {
-      Alert.alert('Geçersiz miktar', 'Parti miktarı sıfırdan büyük olmalı.');
+      Alert.alert('Miktar olmadı', 'Sıfırdan büyük bir sayı yazman lazım.');
       return;
     }
     const unitCost = lotCostUnknown ? null : parseNumber(lotUnitCost);
     if (!lotCostUnknown && (unitCost == null || unitCost < 0)) {
-      Alert.alert('Geçersiz maliyet', 'Birim maliyeti gir ya da "bilmiyorum" seçeneğini işaretle.');
+      Alert.alert('Fiyat lazım', 'Ya bir rakam yaz ya da “valla hatırlamıyorum” de.');
       return;
     }
 
@@ -150,13 +160,13 @@ export function AddAssetScreen({ navigation, route }: Props) {
   const save = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
-      setNameError('Varlığa bir isim ver.');
+      setNameError('Bir isim yaz, ne olduğunu bilelim.');
       setStep('details');
       return;
     }
     const parsedQuantity = parseNumber(quantity);
     if (parsedQuantity == null || parsedQuantity <= 0) {
-      Alert.alert('Geçersiz miktar', 'Miktar sıfırdan büyük olmalı.');
+      Alert.alert('Miktar olmadı', 'Kaç tane olduğunu sıfırdan büyük bir sayı olarak yaz.');
       return;
     }
 
@@ -180,13 +190,30 @@ export function AddAssetScreen({ navigation, route }: Props) {
         isArchived: false,
       };
 
-      if (editing) await updateAsset(asset);
-      else await addAsset(asset);
+      if (editing) {
+        // Düzenlemede kutlama yok — yeni bir şey kazanılmadı.
+        await updateAsset(asset);
+        navigation.goBack();
+        return;
+      }
 
-      navigation.goBack();
+      await addAsset(asset);
+      // Değerleme kaydettikten sonra hesaplandığı için kutlamayı burada bekletiyoruz.
+      const snapshot = await valuationService.valuateAsset(asset);
+      setCelebration(
+        snapshot.normalValue > 0
+          ? pickCelebration(snapshot.normalValue)
+          : UNKNOWN_VALUE_CELEBRATION,
+      );
+      setCelebratedValue(snapshot.normalValue);
     } finally {
       setSaving(false);
     }
+  };
+
+  const dismissCelebration = () => {
+    setCelebration(null);
+    navigation.goBack();
   };
 
   if (atFreeLimit) {
@@ -194,12 +221,12 @@ export function AddAssetScreen({ navigation, route }: Props) {
       <Screen title="Varlık ekle" onBack={() => navigation.goBack()}>
         <Card style={styles.limitCard}>
           <Ionicons name="lock-closed-outline" size={24} color={colors.gold} />
-          <Text style={[typography.heading, styles.limitTitle]}>Ücretsiz sınırına ulaştın</Text>
+          <Text style={[typography.heading, styles.limitTitle]}>Kasa doldu!</Text>
           <Text style={[typography.body, styles.limitBody]}>
-            Ücretsiz kademede {FREE_ASSET_LIMIT} varlık kaydedebilirsin. Premium ile sınır kalkar.
+            Bedava sürümde {FREE_ASSET_LIMIT} şey ekleyebiliyorsun. Bu kadar malın varsa premium'a geçme vaktin gelmiş demektir.
           </Text>
           <Button
-            label="Premium’a bak"
+            label="Premium’a bakayım"
             onPress={() => navigation.replace('Paywall', { source: 'asset-limit' })}
             fullWidth
           />
@@ -210,15 +237,24 @@ export function AddAssetScreen({ navigation, route }: Props) {
 
   return (
     <Screen
-      title={editing ? 'Varlığı düzenle' : 'Varlık ekle'}
+      title={editing ? 'Düzenle' : 'Ne ekliyoruz?'}
       subtitle={STEP_SUBTITLE[step]}
       onBack={() => navigation.goBack()}
     >
+      <CelebrationOverlay
+        visible={celebration != null}
+        content={celebration}
+        assetName={name.trim()}
+        addedValue={celebratedValue}
+        newTotal={portfolio?.totals.normal ?? null}
+        onDismiss={dismissCelebration}
+      />
+
       <StepIndicator current={step} />
 
       {step === 'category' ? (
         <View style={styles.section}>
-          <Text style={[typography.subheading, styles.sectionTitle]}>Kategori seç</Text>
+          <Text style={[typography.subheading, styles.sectionTitle]}>Bu ne böyle?</Text>
           <View style={styles.categoryGrid}>
             {CATEGORIES.map((item) => {
               const selected = item === category;
@@ -234,11 +270,7 @@ export function AddAssetScreen({ navigation, route }: Props) {
                     pressed && styles.pressed,
                   ]}
                 >
-                  <Ionicons
-                    name={CATEGORY_ICON[item] as keyof typeof Ionicons.glyphMap}
-                    size={20}
-                    color={selected ? colors.green : colors.textMuted}
-                  />
+                  <Text style={styles.categoryEmoji}>{CATEGORY_EMOJI[item]}</Text>
                   <Text
                     style={[
                       typography.caption,
@@ -263,15 +295,15 @@ export function AddAssetScreen({ navigation, route }: Props) {
             value={entryMode}
             onChange={setEntryMode}
             segments={[
-              { value: 'catalog', label: 'Katalogdan' },
-              { value: 'manual', label: 'Manuel' },
+              { value: 'catalog', label: '📋 Listeden seç' },
+              { value: 'manual', label: '✍️ Kendim yazayım' },
             ]}
           />
 
           {entryMode === 'catalog' ? (
             <View style={styles.section}>
               <Input
-                placeholder={`${CATEGORY_LABEL[category]} içinde ara`}
+                placeholder={`${CATEGORY_EMOJI[category]} ${CATEGORY_LABEL[category]} ara`}
                 value={catalogQuery}
                 onChangeText={setCatalogQuery}
                 autoCorrect={false}
@@ -281,7 +313,7 @@ export function AddAssetScreen({ navigation, route }: Props) {
               ) : catalogResults.length === 0 ? (
                 <Card>
                   <Text style={[typography.body, styles.emptyCatalog]}>
-                    Bu kategoride eşleşme yok. Manuel girişe geçebilirsin.
+                    Burada öyle bir şey bulamadık. Kendin yazsan daha hızlı olur.
                   </Text>
                 </Card>
               ) : (
@@ -296,7 +328,7 @@ export function AddAssetScreen({ navigation, route }: Props) {
                       <View style={styles.catalogBody}>
                         <Text style={[typography.bodyStrong, styles.catalogName]}>{item.name}</Text>
                         <Text style={[typography.caption, styles.catalogMeta]}>
-                          Referans · birim: {UNIT_LABEL[item.unit]}
+                          birim: {UNIT_LABEL[item.unit]}
                         </Text>
                       </View>
                       <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
@@ -308,10 +340,9 @@ export function AddAssetScreen({ navigation, route }: Props) {
           ) : (
             <Card style={styles.section}>
               <Text style={[typography.body, styles.manualHint]}>
-                Manuel girişte değer, kategori referansından ve girdiğin bilgilerden hesaplanır.
-                Güven skoru katalog eşleşmesine göre daha düşük olur.
+                Kendin yazarsan değeri kategoriye bakarak tahmin ederiz. Listeden seçtiğinden biraz daha az emin oluruz, o kadar.
               </Text>
-              <Button label="Manuel devam et" onPress={() => setStep('details')} fullWidth />
+              <Button label="Tamam, yazayım" onPress={() => setStep('details')} fullWidth />
             </Card>
           )}
         </View>
@@ -320,8 +351,8 @@ export function AddAssetScreen({ navigation, route }: Props) {
       {step === 'details' ? (
         <View style={styles.section}>
           <Input
-            label="Varlık adı"
-            placeholder="Örn. 22 ayar bilezik"
+            label="Adı ne?"
+            placeholder="Mesela: annemin bileziği"
             value={name}
             onChangeText={(value) => {
               setName(value);
@@ -333,7 +364,7 @@ export function AddAssetScreen({ navigation, route }: Props) {
           <View style={styles.row}>
             <View style={styles.rowItem}>
               <Input
-                label="Miktar"
+                label="Kaç tane / kaç gram"
                 value={quantity}
                 onChangeText={setQuantity}
                 keyboardType="decimal-pad"
@@ -361,7 +392,7 @@ export function AddAssetScreen({ navigation, route }: Props) {
               {CONDITIONS.map((item) => (
                 <Chip
                   key={item}
-                  label={CONDITION_LABEL[item]}
+                  label={`${CONDITION_EMOJI[item]} ${CONDITION_LABEL[item]}`}
                   selected={condition === item}
                   onPress={() => setCondition(item)}
                   tone="green"
@@ -371,9 +402,9 @@ export function AddAssetScreen({ navigation, route }: Props) {
           </View>
 
           <Input
-            label="Kendi referans değerin (opsiyonel)"
-            placeholder="Birim başına tahminin"
-            hint="Boş bırakırsan kategori referansı kullanılır."
+            label="Sence kaç eder? (isteğe bağlı)"
+            placeholder="Tanesi kaç para"
+            hint="Boş bırak, biz tahmin ederiz."
             value={declaredValue}
             onChangeText={setDeclaredValue}
             keyboardType="decimal-pad"
@@ -381,24 +412,23 @@ export function AddAssetScreen({ navigation, route }: Props) {
           />
 
           <Input
-            label="Not (opsiyonel)"
-            placeholder="Sertifika, seri no, kutu durumu…"
+            label="Not düşmek istersen"
+            placeholder="Kutusu var, faturası duruyor…"
             value={notes}
             onChangeText={setNotes}
             multiline
           />
 
-          <Button label="Edinim bilgisine geç" onPress={() => setStep('lot')} fullWidth />
+          <Button label="Devam" onPress={() => setStep('lot')} fullWidth />
         </View>
       ) : null}
 
       {step === 'lot' ? (
         <View style={styles.section}>
           <Card style={styles.section}>
-            <Text style={[typography.subheading, styles.sectionTitle]}>Edinim partisi ekle</Text>
+            <Text style={[typography.subheading, styles.sectionTitle]}>Kaça almıştın?</Text>
             <Text style={[typography.caption, styles.hint]}>
-              Aynı varlığı farklı tarihlerde aldıysan her alımı ayrı parti olarak ekle.
-              Maliyeti hatırlamıyorsan boş bırak — uygulama bunu gizlemez, açıkça belirtir.
+              Farklı zamanlarda aldıysan her alımı ayrı ekle. Hatırlamıyorsan da dert etme, “bilmiyorum” de geç — biz de kimseye bildiğimizi söylemeyiz.
             </Text>
 
             <View style={styles.row}>
@@ -422,7 +452,7 @@ export function AddAssetScreen({ navigation, route }: Props) {
             </View>
 
             <Input
-              label="Birim maliyet"
+              label="Tanesi kaça"
               value={lotCostUnknown ? '' : lotUnitCost}
               onChangeText={setLotUnitCost}
               keyboardType="decimal-pad"
@@ -442,11 +472,11 @@ export function AddAssetScreen({ navigation, route }: Props) {
                   <Ionicons name="checkmark" size={14} color={colors.background} />
                 ) : null}
               </View>
-              <Text style={[typography.body, styles.checkLabel]}>Ne kadara aldığımı bilmiyorum</Text>
+              <Text style={[typography.body, styles.checkLabel]}>Valla hatırlamıyorum</Text>
             </Pressable>
 
             <View>
-              <Text style={[typography.caption, styles.fieldLabel]}>Edinim şekli</Text>
+              <Text style={[typography.caption, styles.fieldLabel]}>Nasıl geldi bu sana?</Text>
               <View style={styles.chipRow}>
                 {(Object.keys(SOURCE_LABEL) as AcquisitionSource[]).map((item) => (
                   <Chip
@@ -465,7 +495,7 @@ export function AddAssetScreen({ navigation, route }: Props) {
               </View>
             </View>
 
-            <Button label="Partiyi ekle" onPress={addLot} variant="secondary" icon="add" fullWidth />
+            <Button label="Ekle" onPress={addLot} variant="secondary" icon="add" fullWidth />
           </Card>
 
           {lots.length > 0 ? (
@@ -474,16 +504,16 @@ export function AddAssetScreen({ navigation, route }: Props) {
                 <View key={lot.id} style={styles.lotRow}>
                   <View style={styles.lotBody}>
                     <Text style={[typography.bodyStrong, styles.lotTitle]}>
-                      Parti {index + 1} · {lot.quantity} birim
+                      {index + 1}. alım · {lot.quantity} birim
                     </Text>
                     <Text style={[typography.caption, styles.lotMeta]}>
                       {SOURCE_LABEL[lot.source]} ·{' '}
-                      {lot.unitCost == null ? 'maliyet bilinmiyor' : `${lot.unitCost} ₺/birim`}
+                      {lot.unitCost == null ? 'kaça alındığı meçhul' : `${lot.unitCost} ₺/birim`}
                     </Text>
                   </View>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={`Parti ${index + 1} sil`}
+                    accessibilityLabel={`${index + 1}. alımı sil`}
                     onPress={() => setLots((current) => current.filter((c) => c.id !== lot.id))}
                     style={styles.lotDelete}
                   >
@@ -494,12 +524,12 @@ export function AddAssetScreen({ navigation, route }: Props) {
             </View>
           ) : (
             <Text style={[typography.caption, styles.hint]}>
-              Parti eklemeden de kaydedebilirsin; bu durumda kâr/zarar hesaplanmaz.
+              İstersen hiç girmeden de kaydet. O zaman kâr mı ettin zarar mı, onu hesaplayamayız sadece.
             </Text>
           )}
 
           <Button
-            label={editing ? 'Değişiklikleri kaydet' : 'Varlığı kaydet'}
+            label={editing ? 'Kaydet' : 'Ekle gitsin'}
             onPress={() => void save()}
             loading={saving}
             size="lg"
@@ -513,10 +543,10 @@ export function AddAssetScreen({ navigation, route }: Props) {
 }
 
 const STEP_SUBTITLE: Record<Step, string> = {
-  category: '1 / 4 · Kategori',
-  source: '2 / 4 · Katalog veya manuel',
-  details: '3 / 4 · Detaylar',
-  lot: '4 / 4 · Edinim',
+  category: '1 / 4 · Nesi var bunun',
+  source: '2 / 4 · Listeden mi, elle mi',
+  details: '3 / 4 · Biraz detay',
+  lot: '4 / 4 · Kaça almıştın',
 };
 
 const STEP_ORDER: Step[] = ['category', 'source', 'details', 'lot'];
@@ -570,8 +600,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   categoryTileSelected: { borderColor: colors.green, backgroundColor: colors.cardElevated },
+  categoryEmoji: { fontSize: 24, lineHeight: 30 },
   categoryLabel: { color: colors.textMuted, textAlign: 'center' },
-  categoryLabelSelected: { color: colors.green, fontWeight: '600' },
+  categoryLabelSelected: { color: colors.green, fontFamily: fonts.bodySemi },
 
   row: { flexDirection: 'row', gap: spacing.sm },
   rowItem: { flex: 1 },

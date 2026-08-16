@@ -17,3 +17,4 @@ export { RankBadge } from './RankBadge';
 export { PaywallCard, PaywallTeaser } from './PaywallCard';
 export { AdSlotView } from './AdSlotView';
 export { ToggleRow, ActionRow, Section } from './ListRow';
+export { CelebrationOverlay } from './Celebration';

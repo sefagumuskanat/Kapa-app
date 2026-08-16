@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { DISCLAIMER } from '@/content/vibes';
 import { colors, spacing, typography } from '@/theme';
 import { formatRelativeTime } from '@/utils/format';
 
@@ -22,14 +23,12 @@ export function SourceStamp({ label, timestamp }: SourceStampProps) {
   );
 }
 
-/** Uygulama genelinde tekrar eden yasal uyarı. */
+/**
+ * Uygulama genelinde tekrar eden yasal uyarı.
+ * Ton şakacı ama içerik net: tahmin, tavsiye değil.
+ */
 export function Disclaimer({ text }: { text?: string }) {
-  return (
-    <Text style={[typography.caption, styles.disclaimer]}>
-      {text ??
-        'Bu değerler tahminidir, yatırım tavsiyesi değildir ve satış garantisi vermez.'}
-    </Text>
-  );
+  return <Text style={[typography.caption, styles.disclaimer]}>{text ?? DISCLAIMER}</Text>;
 }
 
 const styles = StyleSheet.create({

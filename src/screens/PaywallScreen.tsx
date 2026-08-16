@@ -23,9 +23,9 @@ export function PaywallScreen({ navigation }: Props) {
     setPurchasing(true);
     try {
       await purchasePremium(selected);
-      Alert.alert('Premium etkin', 'Demo satın alma tamamlandı. Gerçek bir ödeme alınmadı.');
+      Alert.alert('Premium sende! 👑', 'Şaka gibi ama demo. Gerçekten para ödemedin.');
     } catch (error) {
-      Alert.alert('Satın alma başarısız', error instanceof Error ? error.message : 'Bilinmeyen hata.');
+      Alert.alert('Olmadı', error instanceof Error ? error.message : 'Bir terslik oldu.');
     } finally {
       setPurchasing(false);
     }
@@ -36,10 +36,10 @@ export function PaywallScreen({ navigation }: Props) {
     try {
       await restorePurchases();
       Alert.alert(
-        'Geri yükleme',
+        'Bakalım…',
         isPremium
-          ? 'Aboneliğin zaten etkin.'
-          : 'Bu cihazda geri yüklenecek bir abonelik bulunamadı. (Mock mağaza)',
+          ? 'Zaten premium’sun, ekstra bir şey yok. 🙂'
+          : 'Bu telefonda eski bir abonelik bulamadık. (Demo mağaza)',
       );
     } finally {
       setRestoring(false);
@@ -49,20 +49,20 @@ export function PaywallScreen({ navigation }: Props) {
   return (
     <Screen
       title="KAPAMETRE Premium"
-      subtitle="Demo mağaza · gerçek ödeme alınmaz"
+      subtitle="Demo mağaza · paran gitmiyor, merak etme"
       onBack={() => navigation.goBack()}
     >
       {isPremium ? (
         <Card elevated style={styles.activeCard}>
           <Ionicons name="checkmark-circle" size={28} color={colors.green} />
-          <Text style={[typography.heading, styles.activeTitle]}>Premium etkin</Text>
+          <Text style={[typography.heading, styles.activeTitle]}>👑 Premium sende</Text>
           <Text style={[typography.body, styles.muted]}>
             {entitlement.renewsAt
-              ? `Yenileme tarihi: ${formatDate(entitlement.renewsAt)}`
-              : 'Abonelik etkin.'}
+              ? `${formatDate(entitlement.renewsAt)} tarihinde yenilenecek`
+              : 'Abonelik açık.'}
           </Text>
           <Button
-            label="Aboneliği iptal et (demo)"
+            label="İptal et (demo)"
             onPress={() => void cancelPremium()}
             variant="danger"
             fullWidth
@@ -96,7 +96,7 @@ export function PaywallScreen({ navigation }: Props) {
           </View>
 
           <Button
-            label="Premium’a geç"
+            label="Premium’a geç 🚀"
             onPress={() => void handlePurchase()}
             loading={purchasing}
             size="lg"
@@ -110,7 +110,7 @@ export function PaywallScreen({ navigation }: Props) {
             style={styles.restore}
           >
             <Text style={[typography.caption, styles.restoreText]}>
-              {restoring ? 'Geri yükleniyor…' : 'Satın alımları geri yükle'}
+              {restoring ? 'Bakıyoruz…' : 'Eskiden almıştım, geri yükle'}
             </Text>
           </Pressable>
         </>
@@ -118,12 +118,11 @@ export function PaywallScreen({ navigation }: Props) {
 
       <Card style={styles.noteCard}>
         <Text style={[typography.caption, styles.muted]}>
-          Premium yalnızca uygulama içi özellikleri açar. Varlık verilerin premium olsan da olmasan
-          da cihazında kalır ve reklam ya da analitik katmanıyla paylaşılmaz.
+🔒 Premium sadece uygulama içi özellikleri açıyor. Paran olsun olmasın, listen yine telefonunda kalıyor — kimseyle paylaşmıyoruz.
         </Text>
       </Card>
 
-      <Disclaimer text="Fiyatlar demo amaçlıdır. Bu ekran gerçek bir mağaza işlemi başlatmaz." />
+      <Disclaimer text="Fiyatlar göstermelik. Bu ekran gerçek bir ödeme başlatmıyor." />
     </Screen>
   );
 }

@@ -11,6 +11,7 @@ import type { RootStackParamList, TabParamList } from '@/navigation/types';
 import { marketPriceService, privacyService } from '@/services';
 import { useApp } from '@/store/AppContext';
 import { colors, spacing, typography } from '@/theme';
+import { DELETE_ALL, NOT_A_BANK, WHAT_WE_DO } from '@/content/vibes';
 
 type Props = BottomTabScreenProps<TabParamList, 'Settings'>;
 
@@ -42,19 +43,17 @@ export function SettingsScreen({}: Props) {
 
   const confirmDeleteAll = () => {
     Alert.alert(
-      'Tüm verimi sil',
-      `${assets.length} varlık ve ${documents.length} belge cihazından kalıcı olarak silinecek. Bu işlem geri alınamaz.`,
+      DELETE_ALL.title,
+      DELETE_ALL.body(assets.length, documents.length),
       [
-        { text: 'Vazgeç', style: 'cancel' },
+        { text: DELETE_ALL.cancel, style: 'cancel' },
         {
-          text: 'Kalıcı olarak sil',
+          text: DELETE_ALL.confirm,
           style: 'destructive',
           onPress: () => {
             setBusy(true);
             void deleteAllData()
-              .then((removed) =>
-                Alert.alert('Silindi', `${removed} yerel kayıt anahtarı cihazından kaldırıldı.`),
-              )
+              .then(() => Alert.alert('Tertemiz 🧹', 'Her şey silindi. Sıfırdan başlayabilirsin.'))
               .finally(() => setBusy(false));
           },
         },
@@ -72,21 +71,21 @@ export function SettingsScreen({}: Props) {
       .authenticateWithBiometrics()
       .then((result) => {
         if (result.success) void updatePreferences({ biometricLockEnabled: true });
-        else Alert.alert('Doğrulanamadı', result.reason);
+        else Alert.alert('Olmadı', result.reason);
       })
       .finally(() => setBusy(false));
   };
 
   return (
-    <Screen title="Ayarlar" subtitle="Gizlilik merkezi" offline={offline}>
+    <Screen title="Ayarlar" subtitle="Ne nerede duruyor, kim ne görüyor" offline={offline}>
       <Section title="Abonelik">
         <ActionRow
-          icon="sparkles-outline"
-          title={isPremium ? 'Premium etkin' : 'Ücretsiz kademe'}
+          emoji={isPremium ? '👑' : '🎟️'}
+          title={isPremium ? 'Premium sende' : 'Bedava sürümdesin'}
           description={
             isPremium
-              ? `Ürün: ${entitlement.productId ?? '—'} (demo mağaza)`
-              : 'Detaylı sıralama, geçmiş ve reklamsız kullanım için premium.'
+              ? `Aktif · ${entitlement.productId ?? '—'} (demo)`
+              : 'Sıralamada tam yerini gör, reklamlardan kurtul.'
           }
           onPress={() => root.navigate('Paywall', { source: 'settings' })}
         />
@@ -94,42 +93,42 @@ export function SettingsScreen({}: Props) {
 
       <Section
         title="Gizlilik"
-        footer="Sıralama katılımı yaş onayından ve diğer ayarlardan bağımsızdır; istediğin an kapatabilirsin."
+        footer="Sıralama tamamen sana kalmış. İstediğin an kapatırsın, kimse arayıp sormaz."
       >
         <ToggleRow
-          icon="trending-up-outline"
+          emoji="🏆"
           title="Sıralamaya katıl"
-          description="Yalnızca Normal Satış toplamının kova etiketi takma kimlikle paylaşılır."
+          description="Sadece toplamının hangi aralıkta olduğu, uydurma bir adla gider."
           value={consent.granted}
           onValueChange={(value) => void setRankConsent(value)}
         />
         <ToggleRow
-          icon="megaphone-outline"
+          emoji="📢"
           title="Reklamlar"
-          description="Reklam isteği finansal veri taşımaz. Premium ile tamamen kapanır."
+          description="Reklamcılar senin neyin olduğunu görmüyor. Premium'da hiç görünmüyorlar."
           value={preferences.adsEnabled && !isPremium}
           onValueChange={(value) => void updatePreferences({ adsEnabled: value })}
           disabled={isPremium}
         />
         <ToggleRow
-          icon="finger-print-outline"
-          title="Biyometrik kilit"
-          description="Uygulama açılışında cihaz doğrulaması istenir. (Demo: simüle edilir)"
+          emoji="🔐"
+          title="Parmak izi kilidi"
+          description="Meraklı gözlere karşı. (Demoda taklidini yapıyoruz)"
           value={preferences.biometricLockEnabled}
           onValueChange={toggleBiometric}
           disabled={busy}
         />
         <ToggleRow
-          icon="bar-chart-outline"
-          title="Anonim tanılama"
-          description="Çökme ve performans verisi. Varlık verisi asla dahil edilmez."
+          emoji="🩺"
+          title="Anonim hata raporu"
+          description="Uygulama çökerse haberimiz olsun diye. Neyin olduğu asla gitmez."
           value={preferences.anonymousDiagnosticsEnabled}
           onValueChange={(value) => void updatePreferences({ anonymousDiagnosticsEnabled: value })}
         />
       </Section>
 
       <Card style={styles.card}>
-        <Text style={[typography.subheading, styles.cardTitle]}>Verin nerede duruyor?</Text>
+        <Text style={[typography.subheading, styles.cardTitle]}>📍 Neyin nerede duruyor</Text>
         {inventory.map((entry) => (
           <View key={entry.key} style={styles.inventoryRow}>
             <Ionicons
@@ -147,7 +146,7 @@ export function SettingsScreen({}: Props) {
         <View style={styles.divider} />
 
         <Text style={[typography.caption, styles.muted]}>
-          Fiyat sorgusunda sunucuya giden payload'ın tamamı:
+          Fiyat sorarken sunucuya gönderdiğimiz her şey bu kadar:
         </Text>
         {Object.entries(samplePayload).map(([key, value]) => (
           <View key={key} style={styles.payloadRow}>
@@ -158,7 +157,7 @@ export function SettingsScreen({}: Props) {
       </Card>
 
       <Card style={styles.card}>
-        <Text style={[typography.subheading, styles.cardTitle]}>Şifreleme</Text>
+        <Text style={[typography.subheading, styles.cardTitle]}>🔒 Şifreleme</Text>
         <View style={styles.metaRow}>
           <Text style={[typography.body, styles.muted]}>Algoritma</Text>
           <Text style={[typography.bodyStrong, styles.metaValue]}>{encryption.algorithm}</Text>
@@ -169,60 +168,58 @@ export function SettingsScreen({}: Props) {
         </View>
         {encryption.isStub ? (
           <Text style={[typography.caption, styles.warning]}>
-            Bu demo sürümde şifreleme katmanı yer tutucudur ve kriptografik güvence sağlamaz.
-            Üretimde platform keystore ile AES-GCM kullanılır.
+Dürüst olalım: bu demoda şifreleme katmanı taklit. Gerçek sürümde telefonun kendi güvenli deposu kullanılacak. Şimdilik telefonunu birine verirken dikkat et.
           </Text>
         ) : null}
       </Card>
 
       <Section title="Belgeler">
         <ActionRow
-          icon="scan-outline"
+          emoji="🧾"
           title="Belge tara"
-          description={`${documents.length} belge cihazında saklanıyor.`}
+          description={`${documents.length} belge telefonunda duruyor.`}
           onPress={() => root.navigate('Ocr')}
         />
       </Section>
 
-      <Section title="Demo" footer="Bu bölüm yalnızca demo sürümünde görünür.">
+      <Section title="Demo" footer="Burası sadece demo sürümünde var.">
         <ActionRow
-          icon="download-outline"
-          title="Demo veriyi yükle"
-          description="Örnek 5 varlığı yükler ve mevcut listeyi değiştirir."
+          emoji="🎁"
+          title="Örnek listeyi yükle"
+          description="5 örnek eşya yükler. Mevcut listenin üstüne yazar."
           onPress={() => void loadDemoData()}
         />
         <ToggleRow
-          icon="cloud-offline-outline"
-          title="Çevrimdışı modu simüle et"
-          description="Ekranlardaki çevrimdışı davranışını test et."
+          emoji="📡"
+          title="İnternetsiz gibi yap"
+          description="Uygulama internetsizken nasıl davranıyor, gör."
           value={offline}
           onValueChange={setOffline}
         />
       </Section>
 
-      <Section title="Veri" footer="Silme işlemi yalnızca bu cihazı etkiler ve geri alınamaz.">
+      <Section title="Veri" footer="Silince gerçekten gidiyor. Yedek falan tutmuyoruz.">
         <ActionRow
-          icon="trash-outline"
-          title="Tüm yerel verimi sil"
-          description="Varlıklar, belgeler, tercihler ve sıralama rızası dahil."
+          emoji="🔥"
+          title="Her şeyi sil"
+          description="Ne varsa gider. Geri dönüşü yok."
           onPress={confirmDeleteAll}
           tone="danger"
         />
       </Section>
 
       <Card style={styles.card}>
-        <Text style={[typography.subheading, styles.cardTitle]}>KAPAMETRE nedir, ne değildir?</Text>
-        {NOT_LIST.map((item) => (
-          <View key={item} style={styles.bulletRow}>
-            <Ionicons name="close-circle-outline" size={16} color={colors.red} />
-            <Text style={[typography.caption, styles.muted]}>{item}</Text>
+        <Text style={[typography.subheading, styles.cardTitle]}>🤨 Biz ne değiliz</Text>
+        {NOT_A_BANK.map((item) => (
+          <View key={item.text} style={styles.bulletRow}>
+            <Text style={styles.bulletEmoji}>{item.emoji}</Text>
+            <Text style={[typography.caption, styles.muted]}>{item.text}</Text>
           </View>
         ))}
+        <View style={styles.divider} />
         <View style={styles.bulletRow}>
-          <Ionicons name="checkmark-circle-outline" size={16} color={colors.green} />
-          <Text style={[typography.caption, styles.muted]}>
-            Varlıklarını metin tabanlı kaydeder ve üç senaryoda değerler. Hepsi bu.
-          </Text>
+          <Text style={styles.bulletEmoji}>{WHAT_WE_DO.emoji}</Text>
+          <Text style={[typography.caption, styles.muted]}>{WHAT_WE_DO.text}</Text>
         </View>
       </Card>
 
@@ -230,14 +227,6 @@ export function SettingsScreen({}: Props) {
     </Screen>
   );
 }
-
-const NOT_LIST = [
-  'Banka veya ödeme kuruluşu değildir.',
-  'Yatırım tavsiyesi vermez.',
-  'Pazar yeri değildir; alım satım yapılmaz.',
-  'Sosyal platform değildir; kullanıcı listesi yoktur.',
-  'Fotoğraf tabanlı envanter uygulaması değildir.',
-];
 
 const styles = StyleSheet.create({
   card: { gap: spacing.sm },
@@ -254,4 +243,5 @@ const styles = StyleSheet.create({
   payloadKey: { color: colors.textFaint },
   payloadValue: { color: colors.green },
   bulletRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
+  bulletEmoji: { fontSize: 14, lineHeight: 19 },
 });
