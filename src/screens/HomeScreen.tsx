@@ -51,6 +51,8 @@ export function HomeScreen({ navigation }: Props) {
     loadDemoData,
     staleAssets,
     dismissReminder,
+    migrationNotice,
+    dismissMigrationNotice,
   } = useApp();
 
   const [rank, setRank] = useState<RankResult | null>(null);
@@ -229,6 +231,22 @@ export function HomeScreen({ navigation }: Props) {
         </Text>
       </Card>
 
+      {/* Eski sürümden veri taşındıysa kullanıcıya söyle — sessiz kalmak olmaz. */}
+      {migrationNotice ? (
+        <Card style={styles.migrationCard}>
+          <Text style={[typography.subheading, styles.migrationTitle]}>🔄 Kayıtların güncellendi</Text>
+          <Text style={[typography.caption, styles.migrationText]}>
+            {migrationNotice.migrated > 0
+              ? `${migrationNotice.migrated} kalem yeni sürüme taşındı. Değerlerini bir kontrol et, gerekirse güncelle.`
+              : ''}
+            {migrationNotice.dropped > 0
+              ? ` ${migrationNotice.dropped} kayıt okunamadı ve listeden çıkarıldı, kusura bakma.`
+              : ''}
+          </Text>
+          <Button label="Tamam" onPress={dismissMigrationNotice} variant="secondary" fullWidth />
+        </Card>
+      ) : null}
+
       {staleAssets.length > 0 ? (
         <ReminderBanner
           count={staleAssets.length}
@@ -315,6 +333,9 @@ const styles = StyleSheet.create({
   totalLabel: { color: colors.textFaint },
   totalValue: { color: colors.green },
   punchline: { color: colors.text, marginBottom: spacing.xs },
+  migrationCard: { gap: spacing.sm, backgroundColor: colors.goldSoft, borderColor: colors.gold },
+  migrationTitle: { color: colors.gold },
+  migrationText: { color: colors.textMuted },
   shareHint: { color: colors.textMuted, textAlign: 'center' },
   gainPill: {
     alignSelf: 'flex-start',

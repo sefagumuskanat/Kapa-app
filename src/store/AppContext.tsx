@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 
 import { DEMO_ASSETS } from '@/data/demoData';
+import { migrateAssets } from '@/data/migrations';
 import { localStore, STORAGE_KEYS } from '@/data/storage';
 import {
   authService,
@@ -43,8 +44,15 @@ interface OnboardingState {
 
 const DEFAULT_ONBOARDING: OnboardingState = { completed: false, ageGatePassed: false };
 
+/** Eski veriden göç edilince kullanıcıya gösterilecek özet. */
+export interface MigrationNotice {
+  migrated: number;
+  dropped: number;
+}
+
 interface State {
   status: UiStatus;
+  migrationNotice: MigrationNotice | null;
   error: string | null;
   /** Değerleme yeniden hesaplanırken true. */
   revaluating: boolean;
@@ -62,6 +70,7 @@ interface State {
 
 const initialState: State = {
   status: 'idle',
+  migrationNotice: null,
   error: null,
   revaluating: false,
   offline: false,
@@ -102,6 +111,7 @@ type Action =
   | { type: 'preferences/set'; preferences: PrivacyPreferences }
   | { type: 'onboarding/set'; onboarding: OnboardingState }
   | { type: 'offline/set'; offline: boolean }
+  | { type: 'migration/set'; notice: MigrationNotice | null }
   | { type: 'reset' };
 
 function reducer(state: State, action: Action): State {
@@ -144,6 +154,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, onboarding: action.onboarding };
     case 'offline/set':
       return { ...state, offline: action.offline };
+    case 'migration/set':
+      return { ...state, migrationNotice: action.notice };
     case 'reset':
       // Hesap ve onboarding korunur; silinen şey kullanıcının verisidir.
       return {
@@ -181,6 +193,7 @@ interface AppContextValue extends State {
   deleteAllData: () => Promise<number>;
   loadDemoData: () => Promise<void>;
   setOffline: (offline: boolean) => void;
+  dismissMigrationNotice: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -206,9 +219,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const reload = useCallback(async () => {
     dispatch({ type: 'load/start' });
     try {
-      const [assets, profile, reminders, consent, entitlement, preferences, onboarding] =
+      const [rawAssets, profile, reminders, consent, entitlement, preferences, onboarding] =
         await Promise.all([
-          localStore.read<Asset[]>(STORAGE_KEYS.assets, []),
+          localStore.read<unknown>(STORAGE_KEYS.assets, []),
           authService.getProfile(),
           reminderService.getSettings(),
           rankService.getConsent(),
@@ -217,10 +230,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           localStore.read<OnboardingState>(STORAGE_KEYS.onboarding, DEFAULT_ONBOARDING),
         ]);
 
+      /**
+       * Eski sürümden gelen kayıtlar yeni şemaya taşınır. Taşınamayan olursa
+       * sessizce silmiyoruz; sayısını tutup kullanıcıya bildiriyoruz.
+       */
+      const { assets, migrated, dropped } = migrateAssets(rawAssets);
+      if (migrated > 0 || dropped > 0) {
+        await localStore.write(STORAGE_KEYS.assets, assets);
+      }
+
       dispatch({
         type: 'load/success',
         payload: { assets, profile, reminders, consent, entitlement, preferences, onboarding },
       });
+      if (migrated > 0 || dropped > 0) {
+        dispatch({ type: 'migration/set', notice: { migrated, dropped } });
+      }
       await revaluate(assets, entitlement.active && entitlement.tier === 'premium');
     } catch (error) {
       dispatch({
@@ -343,6 +368,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       setOffline: (offline: boolean) => dispatch({ type: 'offline/set', offline }),
+
+      dismissMigrationNotice: () => dispatch({ type: 'migration/set', notice: null }),
     };
   }, [state, reload, revaluate, commitAssets]);
 

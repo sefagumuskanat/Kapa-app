@@ -90,11 +90,6 @@ class ValuationServiceImpl implements IValuationService {
     } else if (autoPriced && !isPremium) {
       // Ücretsiz kademede piyasa fiyatı çekilmez; kullanıcının girdiği değer geçerli.
       priced = this.priceFromDeclaredSale(asset, 'Ücretsiz kademe — fiyatı sen güncelliyorsun');
-      // Henüz elle bir değer girmemişse sıfır göstermek yanlış olur:
-      // alış fiyatını başlangıç kabul edip bunu açıkça söylüyoruz.
-      if (priced.source.kind === 'unavailable') {
-        priced = this.priceFromPurchase(asset);
-      }
     } else if (type.pricing === 'metal') {
       priced = await this.priceFromMetal(asset, currency);
     } else if (type.pricing === 'quote') {
@@ -103,6 +98,16 @@ class ValuationServiceImpl implements IValuationService {
       priced = this.priceFromManualThree(asset);
     } else {
       priced = this.priceFromDeclaredSale(asset);
+    }
+
+    /**
+     * Hangi yoldan gelirse gelsin, değer hesaplanamadıysa alış fiyatına düş.
+     * Sıfır göstermek kullanıcının malını yok saymak olur — özellikle eski
+     * sürümden göç etmiş kayıtlarda bu bir hataydı.
+     */
+    if (priced.source.kind === 'unavailable') {
+      const fallback = this.priceFromPurchase(asset);
+      if (fallback.source.kind !== 'unavailable') priced = fallback;
     }
 
     factors.push(...priced.factors);
@@ -128,7 +133,15 @@ class ValuationServiceImpl implements IValuationService {
       source: priced.source,
       sourceTimestamp: priced.source.timestamp,
       acquisitionCost,
-      unrealizedGain: acquisitionCost == null ? null : round(priced.normal - acquisitionCost),
+      /**
+       * Değer alış fiyatından türetildiyse kâr/zarar hesaplamıyoruz:
+       * alış fiyatını kendisiyle kıyaslayıp "0 kâr" demek bilgi değil, yanıltma
+       * olur. Kullanıcı güncel değeri girince gerçek rakam çıkar.
+       */
+      unrealizedGain:
+        acquisitionCost == null || priced.source.kind === 'acquisition-fallback'
+          ? null
+          : round(priced.normal - acquisitionCost),
       confidenceFactors: factors,
       computedAt: nowIso(),
     };
@@ -375,9 +388,14 @@ class ValuationServiceImpl implements IValuationService {
       bucket.count += 1;
       categoryMap.set(asset.category, bucket);
 
-      if (valuation.acquisitionCost == null) {
-        unknownCostAssetCount += 1;
-      } else {
+      if (valuation.acquisitionCost == null) unknownCostAssetCount += 1;
+
+      /**
+       * Toplam kâr/zarar yalnızca gerçekten kıyaslanabilir kalemlerden toplanır.
+       * Değeri alış fiyatından türetilenlerde `unrealizedGain` zaten null; onları
+       * saymak "0 kâr" gibi yanıltıcı bir toplam üretirdi.
+       */
+      if (valuation.unrealizedGain != null && valuation.acquisitionCost != null) {
         knownAcquisitionCost += valuation.acquisitionCost;
         comparableNormal += valuation.normalValue;
       }

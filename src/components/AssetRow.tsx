@@ -22,6 +22,8 @@ interface AssetRowProps {
 /** Liste satırı: ad + Normal Satış değeri + kâr/zarar. */
 export function AssetRow({ asset, valuation, onPress }: AssetRowProps) {
   const gain = valuation?.unrealizedGain ?? null;
+  /** Değer hesaplanamadıysa rakam yerine kullanıcıyı yönlendir. */
+  const needsValue = valuation != null && valuation.normalValue <= 0;
   const gainTone = gain == null ? colors.textFaint : gain >= 0 ? colors.green : colors.red;
 
   return (
@@ -47,11 +49,19 @@ export function AssetRow({ asset, valuation, onPress }: AssetRowProps) {
       </View>
 
       <View style={styles.values}>
-        <Text style={[typography.bodyStrong, styles.value]} numberOfLines={1}>
-          {valuation ? formatCurrency(valuation.normalValue, valuation.currency, true) : '—'}
+        {/* Değeri hiç hesaplanamayan kalemde "0 ₺" yazmak yanlış izlenim verir. */}
+        <Text
+          style={[typography.bodyStrong, needsValue ? styles.needsValue : styles.value]}
+          numberOfLines={1}
+        >
+          {needsValue
+            ? 'değer gir'
+            : valuation
+              ? formatCurrency(valuation.normalValue, valuation.currency, true)
+              : '—'}
         </Text>
         <Text style={[typography.caption, { color: gainTone }]} numberOfLines={1}>
-          {gain == null ? 'kaça aldın?' : formatSignedCurrency(gain)}
+          {needsValue ? 'dokun, gir' : gain == null ? 'kaça aldın?' : formatSignedCurrency(gain)}
         </Text>
       </View>
 
@@ -94,4 +104,5 @@ const styles = StyleSheet.create({
   meta: { color: colors.textMuted },
   values: { alignItems: 'flex-end', gap: 2 },
   value: { color: colors.text },
+  needsValue: { color: colors.gold },
 });
