@@ -1,11 +1,25 @@
-export { catalogService } from './CatalogService';
-export type { ICatalogService } from './CatalogService';
+export { valuationService, LIQUIDITY_PROFILES } from './ValuationService';
+export type { IValuationService } from './ValuationService';
 
-export { valuationService, LIQUIDITY_PROFILES, CONDITION_MULTIPLIER } from './ValuationService';
-export type { IValuationService, ValuationAdapter, AdapterResult } from './ValuationService';
+export {
+  metalPriceService,
+  HttpMetalPriceService,
+  computePureWeight,
+  parseAttributeNumber,
+} from './MetalPriceService';
+export type { IMetalPriceService } from './MetalPriceService';
 
-export { marketPriceService, MARKET_BASELINES } from './MarketPriceService';
-export type { IMarketPriceService, MarketQuoteRequest } from './MarketPriceService';
+export { authService } from './AuthService';
+export type { IAuthService, RegistrationInput } from './AuthService';
+
+export {
+  reminderService,
+  FREQUENCY_DAYS,
+  FREQUENCY_LABEL,
+  DEFAULT_REMINDER,
+  pickNudge,
+} from './ReminderService';
+export type { IReminderService } from './ReminderService';
 
 export { rankService, COHORT_LABEL, DEFAULT_RANK_CONSENT } from './RankService';
 export type { IRankService } from './RankService';
@@ -18,9 +32,6 @@ export {
   FREE_ENTITLEMENT,
 } from './SubscriptionService';
 export type { ISubscriptionService, SubscriptionProduct } from './SubscriptionService';
-
-export { ocrService, DOCUMENT_KIND_LABEL } from './OCRService';
-export type { IOCRService, OcrScanRequest, OcrScanResult } from './OCRService';
 
 export { privacyService, DEFAULT_PREFERENCES } from './PrivacyService';
 export type { IPrivacyService, PrivacyPreferences, DataInventoryEntry } from './PrivacyService';

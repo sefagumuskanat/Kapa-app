@@ -27,7 +27,7 @@ export interface AdRequest {
 }
 
 export interface IAdService {
-  requestAd(request: AdRequest, adsEnabled: boolean, isPremium: boolean): Promise<AdCreative | null>;
+  requestAd(request: AdRequest, isPremium: boolean): Promise<AdCreative | null>;
   describeOutboundPayload(request: AdRequest): Record<string, string>;
 }
 
@@ -52,12 +52,14 @@ const CREATIVES: Record<AdSlot, Omit<AdCreative, 'slot' | 'personalized'>> = {
 const simulateLatency = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms));
 
 class MockAdService implements IAdService {
-  async requestAd(
-    request: AdRequest,
-    adsEnabled: boolean,
-    isPremium: boolean,
-  ): Promise<AdCreative | null> {
-    if (isPremium || !adsEnabled) return null;
+  /**
+   * Reklam politikası tek yerde ve kesindir:
+   *  - Ücretsiz kademede reklam KAPATILAMAZ (uygulamayı bu finanse ediyor).
+   *  - Premium'da reklam AÇILAMAZ; istese de gösterilmez.
+   * Bu yüzden fonksiyon bir "tercih" almıyor, yalnızca kademeye bakıyor.
+   */
+  async requestAd(request: AdRequest, isPremium: boolean): Promise<AdCreative | null> {
+    if (isPremium) return null;
     await simulateLatency();
     const creative = CREATIVES[request.slot];
     return { slot: request.slot, personalized: false, ...creative };

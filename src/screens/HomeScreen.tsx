@@ -26,7 +26,10 @@ import { rankService } from '@/services';
 import { useApp } from '@/store/AppContext';
 import { colors, fonts, radius, spacing, typography } from '@/theme';
 import { RankResult } from '@/types';
-import { BRAND, confidenceVibe, EMPTY, resolveKapaTier } from '@/content/vibes';
+import { Button } from '@/components';
+import { ReminderBanner } from '@/components/ReminderBanner';
+import { liralikAdamsin } from '@/components/ShareCard';
+import { BRAND, EMPTY, resolveKapaTier } from '@/content/vibes';
 import { CATEGORY_LABEL, formatCurrency, formatSignedCurrency } from '@/utils/format';
 
 type Props = BottomTabScreenProps<TabParamList, 'Home'>;
@@ -46,6 +49,8 @@ export function HomeScreen({ navigation }: Props) {
     reload,
     revaluate,
     loadDemoData,
+    staleAssets,
+    dismissReminder,
   } = useApp();
 
   const [rank, setRank] = useState<RankResult | null>(null);
@@ -119,7 +124,6 @@ export function HomeScreen({ navigation }: Props) {
 
   const totals = portfolio?.totals ?? { fast: 0, normal: 0, patient: 0 };
   const tier = resolveKapaTier(totals.normal);
-  const confidence = confidenceVibe(portfolio?.averageConfidence ?? 0);
 
   return (
     <Screen
@@ -131,11 +135,11 @@ export function HomeScreen({ navigation }: Props) {
       headerRight={
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Belge tara"
-          onPress={() => root.navigate('Ocr')}
+          accessibilityLabel="Fiyatları yenile"
+          onPress={() => void revaluate()}
           style={styles.headerAction}
         >
-          <Ionicons name="scan-outline" size={20} color={colors.textMuted} />
+          <Ionicons name="refresh" size={20} color={colors.textMuted} />
         </Pressable>
       }
     >
@@ -161,43 +165,52 @@ export function HomeScreen({ navigation }: Props) {
           {formatCurrency(totals.normal)}
         </Text>
 
-        <View style={styles.totalMetaRow}>
-          {portfolio?.unrealizedGain != null ? (
-            <View style={styles.gainPill}>
-              <Ionicons
-                name={portfolio.unrealizedGain >= 0 ? 'arrow-up' : 'arrow-down'}
-                size={12}
-                color={portfolio.unrealizedGain >= 0 ? colors.green : colors.red}
-              />
-              <Text
-                style={[
-                  typography.caption,
-                  { color: portfolio.unrealizedGain >= 0 ? colors.green : colors.red },
-                ]}
-              >
-                {formatSignedCurrency(portfolio.unrealizedGain)}
-              </Text>
-            </View>
-          ) : null}
-          <Text style={[typography.caption, styles.assetCount]}>
-            {portfolio?.assetCount ?? 0} parça eşya
-          </Text>
-        </View>
+        {/* Asıl replik: rakamın hemen altında. */}
+        <Text
+          style={[typography.heading, styles.punchline]}
+          numberOfLines={2}
+          adjustsFontSizeToFit
+          minimumFontScale={0.7}
+        >
+          {liralikAdamsin(totals.normal)}
+        </Text>
 
-        {portfolio && portfolio.unknownCostAssetCount > 0 ? (
-          <Text style={[typography.caption, styles.warning]}>
-            🤔 {portfolio.unknownCostAssetCount} şeyin kaça alındığını bilmiyoruz, o yüzden
-            kâr/zarar sadece bildiklerimiz üzerinden.
-          </Text>
+        {portfolio?.unrealizedGain != null ? (
+          <View style={styles.gainPill}>
+            <Ionicons
+              name={portfolio.unrealizedGain >= 0 ? 'arrow-up' : 'arrow-down'}
+              size={12}
+              color={portfolio.unrealizedGain >= 0 ? colors.green : colors.red}
+            />
+            <Text
+              style={[
+                typography.caption,
+                { color: portfolio.unrealizedGain >= 0 ? colors.green : colors.red },
+              ]}
+            >
+              {formatSignedCurrency(portfolio.unrealizedGain)}
+            </Text>
+          </View>
         ) : null}
 
-        <View style={styles.confidenceRow}>
-          <Text style={styles.confidenceEmoji}>{confidence.emoji}</Text>
-          <Text style={[typography.caption, styles.confidenceText]}>
-            Genel olarak: {confidence.label.toLocaleLowerCase('tr-TR')}
-          </Text>
-        </View>
+        <Button
+          label="Paylaş 🚀"
+          onPress={() => root.navigate('Share')}
+          variant="secondary"
+          fullWidth
+        />
+        <Text style={[typography.caption, styles.shareHint]}>
+          Düşman çatlatacaksan buradan paylaş
+        </Text>
       </Card>
+
+      {staleAssets.length > 0 ? (
+        <ReminderBanner
+          count={staleAssets.length}
+          onPress={() => navigation.navigate('Assets')}
+          onDismiss={() => void dismissReminder()}
+        />
+      ) : null}
 
       {/* Üç senaryo kartı */}
       <ValueCardRow fast={totals.fast} normal={totals.normal} patient={totals.patient} />
@@ -276,9 +289,10 @@ const styles = StyleSheet.create({
   },
   totalLabel: { color: colors.textFaint },
   totalValue: { color: colors.green },
-  confidenceEmoji: { fontSize: 13, lineHeight: 18 },
-  totalMetaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  punchline: { color: colors.text, marginBottom: spacing.xs },
+  shareHint: { color: colors.textMuted, textAlign: 'center' },
   gainPill: {
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
@@ -287,10 +301,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.cardElevated,
   },
-  assetCount: { color: colors.textMuted, marginLeft: 'auto' },
-  warning: { color: colors.gold },
-  confidenceRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  confidenceText: { color: colors.textMuted },
 
   chartCard: { gap: spacing.md },
   sectionTitle: { color: colors.text },

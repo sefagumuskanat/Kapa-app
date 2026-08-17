@@ -55,7 +55,7 @@ export function ValueCard({
           style={[typography.label, styles.label, compact && styles.labelCompact]}
           numberOfLines={1}
         >
-          {SCENARIO_LABEL[scenario].toLocaleUpperCase('tr-TR')}
+          {(compact ? SCENARIO_SHORT[scenario] : SCENARIO_LABEL[scenario]).toLocaleUpperCase('tr-TR')}
         </Text>
         {/* Dar üçlü satırda yıldız etiketi kırpıyor; vurgu zaten kenarlık ve renkle veriliyor. */}
         {emphasized && !compact ? <Ionicons name="star" size={12} color={accent} /> : null}
@@ -107,6 +107,13 @@ export function ValueCardRow({
     </View>
   );
 }
+
+/** Üçlü satırda tam etiket sığmıyor; anlam korunarak kısaltılıyor. */
+const SCENARIO_SHORT: Record<ValuationScenario, string> = {
+  fast: 'Hızlı',
+  normal: 'Normal',
+  patient: 'Tok satıcı',
+};
 
 const styles = StyleSheet.create({
   card: {

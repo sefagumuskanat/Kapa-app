@@ -16,6 +16,7 @@ import { Screen } from '@/components/Screen';
 import type { RootStackParamList } from '@/navigation/types';
 import { useApp } from '@/store/AppContext';
 import { colors, fonts, radius, spacing, typography } from '@/theme';
+import { getAssetType } from '@/catalog';
 import { DELETE_ASSET } from '@/content/vibes';
 import { AcquisitionSource } from '@/types';
 import {
@@ -23,6 +24,7 @@ import {
   CONDITION_LABEL,
   formatCurrency,
   formatDate,
+  formatRelativeTime,
   formatSignedCurrency,
   UNIT_LABEL,
 } from '@/utils/format';
@@ -38,14 +40,14 @@ const SOURCE_LABEL: Record<AcquisitionSource, string> = {
 
 export function AssetDetailScreen({ navigation, route }: Props) {
   const { assetId } = route.params;
-  const { assets, valuations, documents, deleteAsset, offline } = useApp();
+  const { assets, valuations, deleteAsset, offline } = useApp();
 
   const asset = useMemo(() => assets.find((item) => item.id === assetId) ?? null, [assets, assetId]);
   const valuation = valuations[assetId] ?? null;
-  const linkedDocuments = useMemo(
-    () => documents.filter((document) => document.linkedAssetId === assetId),
-    [documents, assetId],
-  );
+  const assetType = getAssetType(asset?.typeId);
+  const typeFields = assetType?.fields ?? [];
+  // Altın/gümüş otomatik; diğerleri kullanıcı elini değdirmeden bayatlar.
+  const needsManualUpdate = assetType != null && assetType.pricing !== 'metal';
 
   if (!asset) {
     return (
@@ -200,6 +202,27 @@ export function AssetDetailScreen({ navigation, route }: Props) {
         ) : null}
       </Card>
 
+      {/* Türe özel bilgiler */}
+      {typeFields.length > 0 ? (
+        <Card style={styles.card}>
+          <Text style={[typography.subheading, styles.cardTitle]}>📋 Bilgileri</Text>
+          {typeFields.map((field) => {
+            const raw = asset.attributes[field.key];
+            if (!raw) return null;
+            const option = field.options?.find((o) => o.value === raw);
+            return (
+              <View key={field.key} style={styles.summaryRow}>
+                <Text style={[typography.body, styles.muted]}>{field.label}</Text>
+                <Text style={[typography.bodyStrong, styles.summaryValue]}>
+                  {option?.label ?? raw}
+                  {field.suffix ? ` ${field.suffix}` : ''}
+                </Text>
+              </View>
+            );
+          })}
+        </Card>
+      ) : null}
+
       {/* Alt parçalar */}
       {asset.components.length > 0 ? (
         <Card style={styles.card}>
@@ -219,35 +242,30 @@ export function AssetDetailScreen({ navigation, route }: Props) {
         </Card>
       ) : null}
 
-      {/* Bağlı belgeler */}
-      <Card style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={[typography.subheading, styles.cardTitle]}>🧾 Belgeler</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => navigation.navigate('Ocr', { linkedAssetId: asset.id })}
-          >
-            <Text style={[typography.caption, styles.link]}>Belge tara</Text>
-          </Pressable>
-        </View>
-        {linkedDocuments.length === 0 ? (
-          <Text style={[typography.caption, styles.muted]}>
-            Belge yok. Faturayı sakladıysan tara, bir gün lazım olur.
+      {/* Elle güncellenen kalemler için hızlı güncelleme yolu */}
+      {needsManualUpdate ? (
+        <Card style={styles.card}>
+          <Text style={[typography.subheading, styles.cardTitle]}>🔄 Değerini güncelle</Text>
+          <Text style={[typography.body, styles.muted]}>
+            Bunun fiyatını piyasadan çekemiyoruz. Son güncelleme:{' '}
+            {formatRelativeTime(asset.valueUpdatedAt ?? asset.updatedAt)}.
           </Text>
-        ) : (
-          linkedDocuments.map((document) => (
-            <View key={document.id} style={styles.componentRow}>
-              <Ionicons name="document-text-outline" size={16} color={colors.textFaint} />
-              <Text style={[typography.body, styles.componentName]} numberOfLines={1}>
-                {document.title}
-              </Text>
-              <Text style={[typography.caption, styles.muted]}>
-                {document.extractedFields.length} alan
-              </Text>
-            </View>
-          ))
-        )}
-      </Card>
+          <Button
+            label="Fiyatı güncelle"
+            onPress={() => navigation.navigate('AddAsset', { assetId: asset.id })}
+            variant="secondary"
+            icon="refresh"
+            fullWidth
+          />
+        </Card>
+      ) : (
+        <Card style={styles.card}>
+          <Text style={[typography.subheading, styles.cardTitle]}>📈 Otomatik takip</Text>
+          <Text style={[typography.body, styles.muted]}>
+            Bunun değerini piyasa fiyatından biz hesaplıyoruz; senin güncellemene gerek yok.
+          </Text>
+        </Card>
+      )}
 
       {asset.notes ? (
         <Card style={styles.card}>

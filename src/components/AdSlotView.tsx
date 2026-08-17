@@ -16,20 +16,20 @@ interface AdSlotViewProps {
  * gönderilen payload kullanıcıya açıkça gösterilir.
  */
 export function AdSlotView({ slot, onPressCta }: AdSlotViewProps) {
-  const { preferences, isPremium } = useApp();
+  const { isPremium } = useApp();
   const [creative, setCreative] = useState<AdCreative | null>(null);
 
   useEffect(() => {
     let active = true;
     void adService
-      .requestAd({ slot, locale: 'tr-TR' }, preferences.adsEnabled, isPremium)
+      .requestAd({ slot, locale: 'tr-TR' }, isPremium)
       .then((result) => {
         if (active) setCreative(result);
       });
     return () => {
       active = false;
     };
-  }, [slot, preferences.adsEnabled, isPremium]);
+  }, [slot, isPremium]);
 
   if (!creative) return null;
 

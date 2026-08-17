@@ -77,6 +77,7 @@ export const CATEGORY_LABEL: Record<AssetCategory, string> = {
   bicycle: 'Bisiklet',
   furniture: 'Mobilya',
   collectible: 'Koleksiyon',
+  property: 'Gayrimenkul',
   other: 'Diğer',
 };
 

@@ -39,7 +39,6 @@ const SLIDES: Slide[] = [
 export function OnboardingScreen({}: Props) {
   const { completeOnboarding, setRankConsent, loadDemoData } = useApp();
   const [step, setStep] = useState(0);
-  const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [rankOptIn, setRankOptIn] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -97,23 +96,11 @@ export function OnboardingScreen({}: Props) {
         ) : (
           <View style={styles.gate}>
             <Card style={styles.gateCard}>
-              <Text style={[typography.heading, styles.gateTitle]}>🎂 Küçük bir soru</Text>
+              <Text style={[typography.heading, styles.gateTitle]}>🙋 Sıra sende</Text>
               <Text style={[typography.body, styles.gateBody]}>
-                Bu uygulama 13 yaş ve üzeri için. Devam etmeden önce onaylaman lazım.
+                Devam edince kısa bir kayıt var: adın, doğum tarihin, e-postan ve ne iş
+                yaptığın. Yaş kontrolünü de doğum tarihinden yapıyoruz.
               </Text>
-              <Pressable
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: ageConfirmed }}
-                onPress={() => setAgeConfirmed((value) => !value)}
-                style={({ pressed }) => [styles.checkRow, pressed && styles.pressed]}
-              >
-                <View style={[styles.checkbox, ageConfirmed && styles.checkboxChecked]}>
-                  {ageConfirmed ? (
-                    <Ionicons name="checkmark" size={15} color={colors.background} />
-                  ) : null}
-                </View>
-                <Text style={[typography.body, styles.checkLabel]}>13 yaşından büyüğüm</Text>
-              </Pressable>
             </Card>
 
             <Card padded={false} style={styles.gateCard}>
@@ -139,12 +126,11 @@ export function OnboardingScreen({}: Props) {
 
       <View style={styles.footer}>
         <Button
-          label={isGateStep ? 'Hadi bakalım' : 'Devam'}
+          label={isGateStep ? 'Kayıt olalım' : 'Devam'}
           onPress={handleNext}
           size="lg"
           fullWidth
           loading={submitting}
-          disabled={isGateStep && !ageConfirmed}
         />
         {!isGateStep ? (
           <Pressable

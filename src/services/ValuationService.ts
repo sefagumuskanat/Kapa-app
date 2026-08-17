@@ -1,10 +1,8 @@
-import { catalogService } from './CatalogService';
-import { marketPriceService, MARKET_BASELINES } from './MarketPriceService';
-import { CATALOG } from '@/data/catalog';
+import { computePureWeight, metalPriceService } from './MetalPriceService';
+import { getAssetType } from '@/catalog';
 import {
   Asset,
   AssetCategory,
-  AssetCondition,
   CategoryBreakdown,
   Currency,
   PortfolioSnapshot,
@@ -15,37 +13,26 @@ import {
 import { createId, nowIso } from '@/utils/id';
 
 /**
- * ValuationService (MOCK + adapter).
+ * ValuationService — her varlık için 3 senaryo üretir.
  *
- * Kurallar:
- *  - Yalnızca 3 değer üretilir: fast / normal / patient.
- *  - Normal Satış ana metriktir; toplam ve sıralama onu kullanır.
- *  - Sahte kesinlik yoktur: her sonuç confidenceScore + kaynak + zaman taşır.
- *  - Yatırım tavsiyesi, getiri vaadi veya garanti üretilmez.
+ * Fiyatlama moduna göre üç yol var:
+ *  1. `metal`      — altın/gümüş: saf gram × maden fiyatı × piyasa çarpanı
+ *  2. `manualSale` — kullanıcı güncel satış değerini girer, 3 senaryo türetilir
+ *  3. `manual3`    — kullanıcı üç senaryoyu da kendi girer, aynen kullanılır
+ *
+ * Kurallar değişmedi: Normal Satış ana metriktir, her sonuç güven skoru ve
+ * kaynak taşır, uydurma kesinlik üretilmez.
  */
 
-export interface ValuationAdapter {
-  readonly id: string;
-  readonly label: string;
-  /** Birim değer + güvenilirlik + kaynak döner; çözemezse null. */
-  resolveUnitValue(asset: Asset, currency: Currency): Promise<AdapterResult | null>;
-}
-
-export interface AdapterResult {
-  unitValue: number;
-  reliability: number;
-  source: ValuationSource;
-}
-
-/** Likidite profili: hızlı satış iskontosu ve sabırlı satış primi. */
 interface LiquidityProfile {
   fastDiscount: number;
   patientPremium: number;
 }
 
 const LIQUIDITY: Record<AssetCategory, LiquidityProfile> = {
-  gold: { fastDiscount: 0.03, patientPremium: 0.04 },
-  silver: { fastDiscount: 0.06, patientPremium: 0.06 },
+  // Altın/gümüş neredeyse nakit: kuyumcu makası dar.
+  gold: { fastDiscount: 0.02, patientPremium: 0.02 },
+  silver: { fastDiscount: 0.05, patientPremium: 0.05 },
   jewelry: { fastDiscount: 0.28, patientPremium: 0.18 },
   watch: { fastDiscount: 0.22, patientPremium: 0.2 },
   electronics: { fastDiscount: 0.2, patientPremium: 0.12 },
@@ -54,103 +41,10 @@ const LIQUIDITY: Record<AssetCategory, LiquidityProfile> = {
   bicycle: { fastDiscount: 0.24, patientPremium: 0.15 },
   furniture: { fastDiscount: 0.35, patientPremium: 0.16 },
   collectible: { fastDiscount: 0.3, patientPremium: 0.35 },
+  // Gayrimenkul yavaş satılır: acele edenin kaybı büyük, bekleyenin kazancı gerçek.
+  property: { fastDiscount: 0.18, patientPremium: 0.12 },
   other: { fastDiscount: 0.25, patientPremium: 0.15 },
 };
-
-const CONDITION_MULTIPLIER: Record<AssetCondition, number> = {
-  new: 1.0,
-  likeNew: 0.92,
-  good: 0.8,
-  fair: 0.64,
-  poor: 0.45,
-};
-
-/** Değerli maden kondisyondan neredeyse etkilenmez — ayar/gramaj belirleyicidir. */
-const CONDITION_INSENSITIVE: AssetCategory[] = ['gold', 'silver'];
-
-class CatalogAdapter implements ValuationAdapter {
-  readonly id = 'catalog';
-  readonly label = 'Katalog eşleşmesi';
-
-  async resolveUnitValue(asset: Asset, currency: Currency): Promise<AdapterResult | null> {
-    if (!asset.catalogRef) return null;
-    const item = await catalogService.getByRef(asset.catalogRef);
-    if (!item) return null;
-    // Katalog eşleşmesi güven verir ama kategorinin kendi belirsizliğini silmez:
-    // gramla ölçülen altın ile tek parça pırlanta aynı kesinlikte değerlenemez.
-    const categoryReliability =
-      MARKET_BASELINES[item.category]?.reliability ?? MARKET_BASELINES.other.reliability;
-    return {
-      unitValue: item.referenceUnitValue,
-      reliability: clamp(categoryReliability * 0.85 + 0.15, 0.2, 0.97),
-      source: {
-        kind: 'mock-catalog',
-        label: `Katalog: ${item.name}`,
-        timestamp: '2026-08-16T08:00:00.000Z',
-      },
-    };
-  }
-}
-
-class DeclaredValueAdapter implements ValuationAdapter {
-  readonly id = 'declared';
-  readonly label = 'Kullanıcı beyanı';
-
-  async resolveUnitValue(asset: Asset): Promise<AdapterResult | null> {
-    if (asset.declaredUnitValue == null || asset.declaredUnitValue <= 0) return null;
-    return {
-      unitValue: asset.declaredUnitValue,
-      reliability: 0.6,
-      source: {
-        kind: 'user-declared',
-        label: 'Senin girdiğin referans değer',
-        timestamp: asset.updatedAt,
-      },
-    };
-  }
-}
-
-class MarketAdapter implements ValuationAdapter {
-  readonly id = 'market';
-  readonly label = 'Referans tablo';
-
-  async resolveUnitValue(asset: Asset, currency: Currency): Promise<AdapterResult | null> {
-    const quote = await marketPriceService.getQuote({
-      category: asset.category,
-      unit: asset.unit,
-      currency,
-    });
-    // Birim uyuşmuyorsa (ör. set vs adet) güvenilirliği düşür.
-    const unitMatches = quote.unit === asset.unit;
-    return {
-      unitValue: quote.unitValue,
-      reliability: unitMatches ? quote.reliability : quote.reliability * 0.6,
-      source: quote.source,
-    };
-  }
-}
-
-class AcquisitionFallbackAdapter implements ValuationAdapter {
-  readonly id = 'acquisition';
-  readonly label = 'Edinim maliyeti';
-
-  async resolveUnitValue(asset: Asset): Promise<AdapterResult | null> {
-    const priced = asset.lots.filter((lot) => lot.unitCost != null && lot.unitCost > 0);
-    if (priced.length === 0) return null;
-    const totalQty = priced.reduce((sum, lot) => sum + lot.quantity, 0);
-    if (totalQty <= 0) return null;
-    const totalCost = priced.reduce((sum, lot) => sum + (lot.unitCost as number) * lot.quantity, 0);
-    return {
-      unitValue: totalCost / totalQty,
-      reliability: 0.35,
-      source: {
-        kind: 'acquisition-fallback',
-        label: 'Referans yok — edinim maliyetinden türetildi',
-        timestamp: asset.updatedAt,
-      },
-    };
-  }
-}
 
 export interface IValuationService {
   valuateAsset(asset: Asset, currency?: Currency): Promise<ValuationSnapshot>;
@@ -160,77 +54,57 @@ export interface IValuationService {
     valuations: ValuationSnapshot[],
     currency?: Currency,
   ): PortfolioSnapshot;
-  registerAdapter(adapter: ValuationAdapter): void;
 }
 
-class MockValuationService implements IValuationService {
-  /** Sıra önemlidir: ilk çözen adapter kazanır. */
-  private adapters: ValuationAdapter[] = [
-    new CatalogAdapter(),
-    new DeclaredValueAdapter(),
-    new MarketAdapter(),
-    new AcquisitionFallbackAdapter(),
-  ];
+interface PriceResult {
+  fast: number;
+  normal: number;
+  patient: number;
+  source: ValuationSource;
+  reliability: number;
+  factors: string[];
+}
 
-  registerAdapter(adapter: ValuationAdapter): void {
-    this.adapters = [adapter, ...this.adapters.filter((a) => a.id !== adapter.id)];
-  }
-
+class ValuationServiceImpl implements IValuationService {
   async valuateAsset(asset: Asset, currency: Currency = 'TRY'): Promise<ValuationSnapshot> {
-    let resolved: AdapterResult | null = null;
-    for (const adapter of this.adapters) {
-      resolved = await adapter.resolveUnitValue(asset, currency);
-      if (resolved) break;
-    }
-
+    const type = getAssetType(asset.typeId);
     const factors: string[] = [];
-    const fallback: AdapterResult = {
-      unitValue: 0,
-      reliability: 0.1,
-      source: {
-        kind: 'user-declared',
-        label: 'Değerleme için yeterli veri yok',
-        timestamp: asset.updatedAt,
-      },
-    };
-    const base = resolved ?? fallback;
-    if (!resolved) factors.push('Referans bulunamadı, değer hesaplanamadı');
-    else factors.push(base.source.label);
 
-    const conditionMultiplier = CONDITION_INSENSITIVE.includes(asset.category)
-      ? 1
-      : CONDITION_MULTIPLIER[asset.condition];
-    if (!CONDITION_INSENSITIVE.includes(asset.category) && asset.condition !== 'new') {
-      factors.push(`Durum etkisi uygulandı (×${conditionMultiplier.toFixed(2)})`);
+    let priced: PriceResult;
+    if (!type) {
+      priced = this.unavailable('Tür tanımı bulunamadı', asset);
+    } else if (type.pricing === 'metal') {
+      priced = await this.priceFromMetal(asset, currency);
+    } else if (type.pricing === 'manual3') {
+      priced = this.priceFromManualThree(asset);
+    } else {
+      priced = this.priceFromDeclaredSale(asset);
     }
 
-    const componentValue = this.componentUplift(asset);
-    if (componentValue > 0) factors.push(`${asset.components.length} parça ayrı değerlendi`);
-
-    const normalRaw = base.unitValue * asset.quantity * conditionMultiplier + componentValue;
-    const liquidity = LIQUIDITY[asset.category] ?? LIQUIDITY.other;
-
-    const normalValue = round(normalRaw);
-    const fastValue = round(normalRaw * (1 - liquidity.fastDiscount));
-    const patientValue = round(normalRaw * (1 + liquidity.patientPremium));
+    factors.push(...priced.factors);
 
     const acquisitionCost = this.acquisitionCost(asset);
-    if (acquisitionCost == null) factors.push('Edinim maliyeti bilinmiyor');
+    if (acquisitionCost == null) factors.push('Kaça aldığın bilinmiyor, kâr/zarar çıkmaz');
 
-    const confidenceScore = this.confidence(asset, base, acquisitionCost, factors);
+    const staleness = this.stalenessDays(asset, type?.pricing);
+    if (staleness != null && staleness > 45) {
+      factors.push(`Bu değeri ${Math.round(staleness)} gündür güncellemedin`);
+    }
+
+    const confidenceScore = this.confidence(asset, priced, acquisitionCost, staleness, factors);
 
     return {
       id: createId('val'),
       assetId: asset.id,
       currency,
-      fastValue,
-      normalValue,
-      patientValue,
+      fastValue: round(priced.fast),
+      normalValue: round(priced.normal),
+      patientValue: round(priced.patient),
       confidenceScore,
-      source: base.source,
-      sourceTimestamp: base.source.timestamp,
+      source: priced.source,
+      sourceTimestamp: priced.source.timestamp,
       acquisitionCost,
-      unrealizedGain: acquisitionCost == null ? null : round(normalValue - acquisitionCost),
+      unrealizedGain: acquisitionCost == null ? null : round(priced.normal - acquisitionCost),
       confidenceFactors: factors,
       computedAt: nowIso(),
     };
@@ -238,6 +112,154 @@ class MockValuationService implements IValuationService {
 
   async valuateAll(assets: Asset[], currency: Currency = 'TRY'): Promise<ValuationSnapshot[]> {
     return Promise.all(assets.map((asset) => this.valuateAsset(asset, currency)));
+  }
+
+  /* --------------------------------------------------------------- */
+
+  /** Altın / gümüş: saf gram × gram fiyatı × piyasa çarpanı. */
+  private async priceFromMetal(asset: Asset, currency: Currency): Promise<PriceResult> {
+    const type = getAssetType(asset.typeId);
+    if (!type?.metal) return this.unavailable('Maden bilgisi eksik', asset);
+
+    const weight = computePureWeight(type, asset.attributes);
+    if (!weight) return this.unavailable('Gram veya ayar bilgisi eksik', asset);
+
+    const quote = await metalPriceService.getQuote(type.metal.metal, currency);
+    const base = weight.pureGram * quote.pricePerGram * type.metal.marketFactor;
+    const liquidity = LIQUIDITY[asset.category] ?? LIQUIDITY.other;
+
+    const factors = [
+      `${weight.explanation} = ${weight.pureGram.toFixed(2)} g saf`,
+      `Gram fiyatı ${Math.round(quote.pricePerGram)} ₺`,
+    ];
+    if (type.metal.marketFactor < 1) {
+      factors.push(`İşçilik payı düşüldü (×${type.metal.marketFactor})`);
+    } else if (type.metal.marketFactor > 1) {
+      factors.push(`Piyasa primi eklendi (×${type.metal.marketFactor})`);
+    }
+    if (!quote.isLive) factors.push('Canlı fiyat bağlantısı yok, demo tablo kullanıldı');
+
+    return {
+      fast: base * (1 - liquidity.fastDiscount),
+      normal: base,
+      patient: base * (1 + liquidity.patientPremium),
+      source: quote.source,
+      // Maden fiyatı en güvenilir kalem; canlı olmadığı için tavan yapmıyoruz.
+      reliability: quote.isLive ? 0.95 : 0.8,
+      factors,
+    };
+  }
+
+  /** Kullanıcı üç fiyatı da kendi girmiş. */
+  private priceFromManualThree(asset: Asset): PriceResult {
+    const prices = asset.manualPrices;
+    if (!prices || prices.normal <= 0) {
+      return this.unavailable('Üç fiyat girilmemiş', asset);
+    }
+    // Girilen sıralama bozuksa düzelt — kullanıcı yanlış kutuya yazmış olabilir.
+    const sorted = [prices.fast, prices.normal, prices.patient].sort((a, b) => a - b);
+    return {
+      fast: sorted[0],
+      normal: prices.normal,
+      patient: sorted[2],
+      source: {
+        kind: 'user-three-prices',
+        label: 'Üç fiyatı sen girdin',
+        timestamp: asset.valueUpdatedAt ?? asset.updatedAt,
+      },
+      reliability: 0.7,
+      factors: ['Fiyatları sen belirledin'],
+    };
+  }
+
+  /** Kullanıcı tek bir güncel satış değeri girmiş (pırlanta, ev, arsa). */
+  private priceFromDeclaredSale(asset: Asset): PriceResult {
+    const value = asset.declaredSaleValue;
+    if (value == null || value <= 0) {
+      return this.unavailable('Güncel değer girilmemiş', asset);
+    }
+    const liquidity = LIQUIDITY[asset.category] ?? LIQUIDITY.other;
+    return {
+      fast: value * (1 - liquidity.fastDiscount),
+      normal: value,
+      patient: value * (1 + liquidity.patientPremium),
+      source: {
+        kind: 'user-declared',
+        label: 'Senin girdiğin güncel değer',
+        timestamp: asset.valueUpdatedAt ?? asset.updatedAt,
+      },
+      reliability: 0.65,
+      factors: ['Güncel değeri sen girdin'],
+    };
+  }
+
+  private unavailable(reason: string, asset: Asset): PriceResult {
+    return {
+      fast: 0,
+      normal: 0,
+      patient: 0,
+      source: {
+        kind: 'unavailable',
+        label: 'Değer hesaplanamadı',
+        timestamp: asset.updatedAt,
+      },
+      reliability: 0.05,
+      factors: [reason],
+    };
+  }
+
+  /* --------------------------------------------------------------- */
+
+  private acquisitionCost(asset: Asset): number | null {
+    if (asset.lots.length === 0) return null;
+    const known = asset.lots.filter((lot) => lot.unitCost != null);
+    // Partilerin bir kısmı bilinmiyorsa toplam maliyet iddia edilmez.
+    if (known.length !== asset.lots.length || known.length === 0) return null;
+    return round(known.reduce((sum, lot) => sum + (lot.unitCost as number) * lot.quantity, 0));
+  }
+
+  /** Elle güncellenen kalemlerde değerin kaç gün önce tazelendiği. */
+  private stalenessDays(asset: Asset, pricing?: string): number | null {
+    if (pricing === 'metal') return null; // otomatik güncelleniyor
+    const ref = asset.valueUpdatedAt ?? asset.updatedAt;
+    const then = new Date(ref).getTime();
+    if (Number.isNaN(then)) return null;
+    return Math.max(0, (Date.now() - then) / 86_400_000);
+  }
+
+  private confidence(
+    asset: Asset,
+    priced: PriceResult,
+    acquisitionCost: number | null,
+    staleness: number | null,
+    factors: string[],
+  ): number {
+    let completeness = 0;
+    const type = getAssetType(asset.typeId);
+
+    // Türe özel zorunlu alanlar dolduruldu mu?
+    const required = (type?.fields ?? []).filter((f) => f.required);
+    if (required.length > 0) {
+      const filled = required.filter((f) => (asset.attributes[f.key] ?? '') !== '').length;
+      completeness += 0.5 * (filled / required.length);
+      if (filled < required.length) factors.push('Bazı bilgiler eksik kalmış');
+    } else {
+      completeness += 0.5;
+    }
+
+    if (acquisitionCost != null) completeness += 0.3;
+    if (asset.quantity > 0) completeness += 0.2;
+
+    let score = priced.reliability * 0.7 + clamp(completeness, 0, 1) * 0.3;
+
+    // Bayat elle girilen değer güveni düşürür.
+    if (staleness != null) {
+      if (staleness > 180) score -= 0.25;
+      else if (staleness > 90) score -= 0.15;
+      else if (staleness > 45) score -= 0.08;
+    }
+
+    return clamp(score, 0.05, 0.92);
   }
 
   buildPortfolioSnapshot(
@@ -253,6 +275,7 @@ class MockValuationService implements IValuationService {
     let unknownCostAssetCount = 0;
     let confidenceSum = 0;
     let counted = 0;
+    let comparableNormal = 0;
 
     for (const asset of assets) {
       const valuation = byId.get(asset.id);
@@ -266,8 +289,12 @@ class MockValuationService implements IValuationService {
       bucket.count += 1;
       categoryMap.set(asset.category, bucket);
 
-      if (valuation.acquisitionCost == null) unknownCostAssetCount += 1;
-      else knownAcquisitionCost += valuation.acquisitionCost;
+      if (valuation.acquisitionCost == null) {
+        unknownCostAssetCount += 1;
+      } else {
+        knownAcquisitionCost += valuation.acquisitionCost;
+        comparableNormal += valuation.normalValue;
+      }
 
       confidenceSum += valuation.confidenceScore;
       counted += 1;
@@ -282,13 +309,6 @@ class MockValuationService implements IValuationService {
       }))
       .sort((a, b) => b.normalValue - a.normalValue);
 
-    // Maliyeti bilinmeyen varlıklar varken toplam kâr/zarar iddia edilmez.
-    const comparableNormal = assets.reduce((sum, asset) => {
-      const valuation = byId.get(asset.id);
-      if (!valuation || valuation.acquisitionCost == null) return sum;
-      return sum + valuation.normalValue;
-    }, 0);
-
     return {
       id: createId('snap'),
       createdAt: nowIso(),
@@ -301,78 +321,12 @@ class MockValuationService implements IValuationService {
       assetCount: counted,
       knownAcquisitionCost: round(knownAcquisitionCost),
       unknownCostAssetCount,
-      unrealizedGain: knownAcquisitionCost > 0 ? round(comparableNormal - knownAcquisitionCost) : null,
+      unrealizedGain:
+        knownAcquisitionCost > 0 ? round(comparableNormal - knownAcquisitionCost) : null,
       averageConfidence: counted > 0 ? confidenceSum / counted : 0,
       byCategory,
     };
   }
-
-  /** Alt parçalar ana birim değere ek olarak katkı verir. */
-  private componentUplift(asset: Asset): number {
-    return asset.components.reduce((sum, component) => {
-      const conditionMultiplier = CONDITION_INSENSITIVE.includes(component.category)
-        ? 1
-        : CONDITION_MULTIPLIER[component.condition];
-      const reference = componentReference(component.catalogRef);
-      return sum + reference * component.quantity * conditionMultiplier;
-    }, 0);
-  }
-
-  private acquisitionCost(asset: Asset): number | null {
-    if (asset.lots.length === 0) return null;
-    const known = asset.lots.filter((lot) => lot.unitCost != null);
-    // Partilerin bir kısmı bilinmiyorsa toplam maliyet iddia edilmez.
-    if (known.length !== asset.lots.length || known.length === 0) return null;
-    return round(known.reduce((sum, lot) => sum + (lot.unitCost as number) * lot.quantity, 0));
-  }
-
-  /**
-   * Güven skoru = kaynak güvenilirliği (%70) + veri eksiksizliği (%30).
-   *
-   * Bileşik tutulmasının sebebi: tek bir sinyal skoru tavana yapıştırmasın.
-   * Skor asla 1'e ulaşmaz — tahmin olduğunu gizleyecek bir kesinlik iddiası
-   * üretmemek ürün kuralıdır.
-   */
-  private confidence(
-    asset: Asset,
-    base: AdapterResult,
-    acquisitionCost: number | null,
-    factors: string[],
-  ): number {
-    let completeness = 0;
-
-    if (asset.catalogRef) completeness += 0.3;
-    else factors.push('Katalog eşleşmesi yok');
-
-    if (asset.lots.length > 0) completeness += 0.15;
-    if (acquisitionCost != null) completeness += 0.25;
-    if (asset.declaredUnitValue != null && asset.declaredUnitValue > 0) completeness += 0.15;
-
-    if (asset.category === 'other') factors.push('Kategori belirsiz');
-    else completeness += 0.15;
-
-    if (asset.quantity <= 0) {
-      completeness = 0;
-      factors.push('Miktar geçersiz');
-    }
-
-    let score = base.reliability * 0.7 + clamp(completeness, 0, 1) * 0.3;
-
-    const staleness = daysSince(base.source.timestamp);
-    if (staleness > 30) {
-      score -= 0.1;
-      factors.push('Referans verisi 30 günden eski');
-    }
-
-    return clamp(score, 0.05, 0.92);
-  }
-}
-
-/** Alt parça için basit referans; katalog dışı parçalar 0 katkı verir. */
-function componentReference(catalogRef?: string): number {
-  if (!catalogRef) return 0;
-  const item = CATALOG.find((candidate) => candidate.ref === catalogRef);
-  return item ? item.referenceUnitValue : 0;
 }
 
 function round(value: number): number {
@@ -383,11 +337,5 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function daysSince(iso: string): number {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return 0;
-  return Math.max(0, (Date.now() - then) / 86_400_000);
-}
-
-export const valuationService: IValuationService = new MockValuationService();
-export { LIQUIDITY as LIQUIDITY_PROFILES, CONDITION_MULTIPLIER };
+export const valuationService: IValuationService = new ValuationServiceImpl();
+export { LIQUIDITY as LIQUIDITY_PROFILES };

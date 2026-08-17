@@ -21,7 +21,7 @@ import { useApp } from '@/store/AppContext';
 import { colors, spacing, typography } from '@/theme';
 import { AssetCategory } from '@/types';
 import { CATEGORY_EMOJI, EMPTY } from '@/content/vibes';
-import { CATEGORY_LABEL, formatCurrency, SCENARIO_LABEL } from '@/utils/format';
+import { CATEGORY_LABEL, formatCurrency, formatSignedCurrency, SCENARIO_LABEL } from '@/utils/format';
 
 type Props = BottomTabScreenProps<TabParamList, 'Assets'>;
 
@@ -67,9 +67,21 @@ export function AssetListScreen({}: Props) {
     [filtered, valuations],
   );
 
+  /**
+   * Kâr/zarar yalnızca alış fiyatı bilinen kalemler üzerinden toplanır.
+   * Hiçbirinin maliyeti yoksa rakam uydurmak yerine hiç göstermiyoruz.
+   */
+  const visibleGain = useMemo(() => {
+    const known = filtered
+      .map((asset) => valuations[asset.id])
+      .filter((v) => v != null && v.unrealizedGain != null);
+    if (known.length === 0) return null;
+    return known.reduce((sum, v) => sum + (v!.unrealizedGain as number), 0);
+  }, [filtered, valuations]);
+
   if (status === 'error') {
     return (
-      <Screen title="Neyin var">
+      <Screen title="Mal Varlığım">
         <ErrorState description={error ?? 'Liste yüklenemedi.'} onRetry={() => void reload()} />
       </Screen>
     );
@@ -77,7 +89,7 @@ export function AssetListScreen({}: Props) {
 
   if (status === 'loading') {
     return (
-      <Screen title="Neyin var">
+      <Screen title="Mal Varlığım">
         <ListSkeleton rows={5} />
       </Screen>
     );
@@ -85,7 +97,7 @@ export function AssetListScreen({}: Props) {
 
   if (assets.length === 0) {
     return (
-      <Screen title="Neyin var" offline={offline}>
+      <Screen title="Mal Varlığım" offline={offline}>
         <EmptyState
           emoji={EMPTY.assets.emoji}
           title={EMPTY.assets.title}
@@ -101,8 +113,10 @@ export function AssetListScreen({}: Props) {
 
   return (
     <Screen
-      title="Neyin var"
-      subtitle={`${filtered.length} parça · ${formatCurrency(visibleTotal, 'TRY', true)} eder`}
+      title="Mal Varlığım"
+      subtitle={`${filtered.length} parça · ${formatCurrency(visibleTotal, 'TRY', true)} eder${
+        visibleGain != null ? ` · ${formatSignedCurrency(visibleGain)}` : ''
+      }`}
       offline={offline}
       onRefresh={() => void revaluate()}
       refreshing={revaluating}

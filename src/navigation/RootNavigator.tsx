@@ -7,9 +7,11 @@ import { TabNavigator } from './TabNavigator';
 import type { RootStackParamList } from './types';
 import { AddAssetScreen } from '@/screens/AddAssetScreen';
 import { AssetDetailScreen } from '@/screens/AssetDetailScreen';
-import { OcrScreen } from '@/screens/OcrScreen';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { PaywallScreen } from '@/screens/PaywallScreen';
+import { RegisterScreen } from '@/screens/RegisterScreen';
+import { ShareScreen } from '@/screens/ShareScreen';
+import { VerifyEmailScreen } from '@/screens/VerifyEmailScreen';
 import { useApp } from '@/store/AppContext';
 import { colors } from '@/theme';
 
@@ -29,7 +31,7 @@ const navigationTheme: Theme = {
 };
 
 export function RootNavigator() {
-  const { status, onboarding } = useApp();
+  const { status, onboarding, profile, isAuthenticated } = useApp();
 
   if (status === 'idle' || status === 'loading') {
     return (
@@ -48,8 +50,16 @@ export function RootNavigator() {
           animation: 'slide_from_right',
         }}
       >
+        {/*
+          Akış sırası: tanıtım → kayıt → e-posta doğrulama → uygulama.
+          Kayıt zorunlu olduğu için doğrulanmamış kullanıcı sekmelere ulaşamaz.
+        */}
         {!onboarding.completed ? (
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+        ) : !profile ? (
+          <Stack.Screen name="Register" component={RegisterScreen} />
+        ) : !isAuthenticated ? (
+          <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
         ) : null}
         <Stack.Screen name="Tabs" component={TabNavigator} />
         <Stack.Screen
@@ -64,8 +74,8 @@ export function RootNavigator() {
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
         <Stack.Screen
-          name="Ocr"
-          component={OcrScreen}
+          name="Share"
+          component={ShareScreen}
           options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
         />
       </Stack.Navigator>

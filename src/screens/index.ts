@@ -6,4 +6,6 @@ export { AssetDetailScreen } from './AssetDetailScreen';
 export { RankingScreen } from './RankingScreen';
 export { PaywallScreen } from './PaywallScreen';
 export { SettingsScreen } from './SettingsScreen';
-export { OcrScreen } from './OcrScreen';
+export { RegisterScreen } from './RegisterScreen';
+export { VerifyEmailScreen } from './VerifyEmailScreen';
+export { ShareScreen } from './ShareScreen';

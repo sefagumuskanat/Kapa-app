@@ -25,7 +25,7 @@ const ICONS: Record<keyof TabParamList, keyof typeof Ionicons.glyphMap> = {
 
 const LABELS: Record<keyof TabParamList, string> = {
   Home: 'Karnem',
-  Assets: 'Neyim var',
+  Assets: 'Mal Varlığım',
   AddTab: 'Ekle',
   Ranking: 'Sıralama',
   Settings: 'Ayarlar',

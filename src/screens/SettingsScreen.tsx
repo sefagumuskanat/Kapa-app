@@ -8,7 +8,7 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import { ActionRow, Card, Disclaimer, Section, ToggleRow } from '@/components';
 import { Screen } from '@/components/Screen';
 import type { RootStackParamList, TabParamList } from '@/navigation/types';
-import { marketPriceService, privacyService } from '@/services';
+import { FREQUENCY_LABEL, privacyService } from '@/services';
 import { useApp } from '@/store/AppContext';
 import { colors, spacing, typography } from '@/theme';
 import { DELETE_ALL, NOT_A_BANK, WHAT_WE_DO } from '@/content/vibes';
@@ -23,8 +23,11 @@ export function SettingsScreen({}: Props) {
     entitlement,
     isPremium,
     assets,
-    documents,
     offline,
+    profile,
+    reminders,
+    setReminderFrequency,
+    signOut,
     updatePreferences,
     setRankConsent,
     deleteAllData,
@@ -35,16 +38,11 @@ export function SettingsScreen({}: Props) {
   const [busy, setBusy] = useState(false);
   const encryption = privacyService.getEncryptionStatus();
   const inventory = privacyService.getDataInventory();
-  const samplePayload = marketPriceService.describeOutboundPayload({
-    category: 'gold',
-    unit: 'gram',
-    currency: 'TRY',
-  });
 
   const confirmDeleteAll = () => {
     Alert.alert(
       DELETE_ALL.title,
-      DELETE_ALL.body(assets.length, documents.length),
+      DELETE_ALL.body(assets.length, 0),
       [
         { text: DELETE_ALL.cancel, style: 'cancel' },
         {
@@ -78,6 +76,27 @@ export function SettingsScreen({}: Props) {
 
   return (
     <Screen title="Ayarlar" subtitle="Ne nerede duruyor, kim ne görüyor" offline={offline}>
+      <Section title="Hesap">
+        <ActionRow
+          emoji="🙋"
+          title={profile ? `${profile.firstName} ${profile.lastName}` : 'Hesap yok'}
+          description={profile?.email ?? '—'}
+          onPress={() => {}}
+        />
+        <ActionRow
+          emoji="🚪"
+          title="Çıkış yap"
+          description="Hesabı bu cihazdan çıkarır. Varlıkların silinmez."
+          onPress={() =>
+            Alert.alert('Çıkış', 'Hesabından çıkmak istediğine emin misin?', [
+              { text: 'Vazgeç', style: 'cancel' },
+              { text: 'Çıkış yap', style: 'destructive', onPress: () => void signOut() },
+            ])
+          }
+          tone="danger"
+        />
+      </Section>
+
       <Section title="Abonelik">
         <ActionRow
           emoji={isPremium ? '👑' : '🎟️'}
@@ -102,13 +121,15 @@ export function SettingsScreen({}: Props) {
           value={consent.granted}
           onValueChange={(value) => void setRankConsent(value)}
         />
-        <ToggleRow
+        <ActionRow
           emoji="📢"
-          title="Reklamlar"
-          description="Reklamcılar senin neyin olduğunu görmüyor. Premium'da hiç görünmüyorlar."
-          value={preferences.adsEnabled && !isPremium}
-          onValueChange={(value) => void updatePreferences({ adsEnabled: value })}
-          disabled={isPremium}
+          title={isPremium ? 'Reklam yok' : 'Reklamlar açık'}
+          description={
+            isPremium
+              ? 'Premium olduğun için reklam gösterilmiyor. Açmak diye bir şey yok.'
+              : 'Bedava sürümde reklamlar kapanmıyor — uygulamayı bunlar döndürüyor. Premium tek çıkış yolu.'
+          }
+          onPress={() => root.navigate('Paywall', { source: 'settings-ads' })}
         />
         <ToggleRow
           emoji="🔐"
@@ -143,17 +164,6 @@ export function SettingsScreen({}: Props) {
           </View>
         ))}
 
-        <View style={styles.divider} />
-
-        <Text style={[typography.caption, styles.muted]}>
-          Fiyat sorarken sunucuya gönderdiğimiz her şey bu kadar:
-        </Text>
-        {Object.entries(samplePayload).map(([key, value]) => (
-          <View key={key} style={styles.payloadRow}>
-            <Text style={[typography.mono, styles.payloadKey]}>{key}</Text>
-            <Text style={[typography.mono, styles.payloadValue]}>{value}</Text>
-          </View>
-        ))}
       </Card>
 
       <Card style={styles.card}>
@@ -173,13 +183,19 @@ Dürüst olalım: bu demoda şifreleme katmanı taklit. Gerçek sürümde telefo
         ) : null}
       </Card>
 
-      <Section title="Belgeler">
-        <ActionRow
-          emoji="🧾"
-          title="Belge tara"
-          description={`${documents.length} belge telefonunda duruyor.`}
-          onPress={() => root.navigate('Ocr')}
-        />
+      <Section
+        title="Fiyat hatırlatması"
+        footer="Altın ve gümüşü biz takip ediyoruz. Ev, arsa, pırlanta, araba gibi kalemlerin fiyatını sen giriyorsun — o yüzden ara ara dürtüyoruz. Kapatılmıyor, sadece sıklığı değişiyor."
+      >
+        {(Object.keys(FREQUENCY_LABEL) as Array<keyof typeof FREQUENCY_LABEL>).map((key) => (
+          <ActionRow
+            key={key}
+            emoji={reminders.frequency === key ? '✅' : '⏰'}
+            title={FREQUENCY_LABEL[key]}
+            description={reminders.frequency === key ? 'Şu an bu seçili' : undefined}
+            onPress={() => void setReminderFrequency(key)}
+          />
+        ))}
       </Section>
 
       <Section title="Demo" footer="Burası sadece demo sürümünde var.">

@@ -7,25 +7,31 @@ import React, {
   useReducer,
 } from 'react';
 
-import { DEMO_ASSETS, DEMO_DOCUMENTS } from '@/data/demoData';
+import { DEMO_ASSETS } from '@/data/demoData';
 import { localStore, STORAGE_KEYS } from '@/data/storage';
 import {
+  authService,
   DEFAULT_PREFERENCES,
   DEFAULT_RANK_CONSENT,
+  DEFAULT_REMINDER,
   FREE_ENTITLEMENT,
   privacyService,
   PrivacyPreferences,
+  RegistrationInput,
+  reminderService,
   rankService,
   subscriptionService,
   valuationService,
 } from '@/services';
 import {
   Asset,
-  LocalDocumentRecord,
   PortfolioSnapshot,
   RankConsent,
+  ReminderFrequency,
+  ReminderSettings,
   SubscriptionEntitlement,
   UiStatus,
+  UserProfile,
   ValuationSnapshot,
 } from '@/types';
 import { nowIso } from '@/utils/id';
@@ -46,7 +52,8 @@ interface State {
   assets: Asset[];
   valuations: Record<string, ValuationSnapshot>;
   portfolio: PortfolioSnapshot | null;
-  documents: LocalDocumentRecord[];
+  profile: UserProfile | null;
+  reminders: ReminderSettings;
   consent: RankConsent;
   entitlement: SubscriptionEntitlement;
   preferences: PrivacyPreferences;
@@ -61,7 +68,8 @@ const initialState: State = {
   assets: [],
   valuations: {},
   portfolio: null,
-  documents: [],
+  profile: null,
+  reminders: DEFAULT_REMINDER,
   consent: DEFAULT_RANK_CONSENT,
   entitlement: FREE_ENTITLEMENT,
   preferences: DEFAULT_PREFERENCES,
@@ -75,13 +83,20 @@ type Action =
       type: 'load/success';
       payload: Pick<
         State,
-        'assets' | 'documents' | 'consent' | 'entitlement' | 'preferences' | 'onboarding'
+        | 'assets'
+        | 'profile'
+        | 'reminders'
+        | 'consent'
+        | 'entitlement'
+        | 'preferences'
+        | 'onboarding'
       >;
     }
   | { type: 'valuation/start' }
   | { type: 'valuation/done'; valuations: ValuationSnapshot[]; portfolio: PortfolioSnapshot }
   | { type: 'assets/set'; assets: Asset[] }
-  | { type: 'documents/set'; documents: LocalDocumentRecord[] }
+  | { type: 'profile/set'; profile: UserProfile | null }
+  | { type: 'reminders/set'; reminders: ReminderSettings }
   | { type: 'consent/set'; consent: RankConsent }
   | { type: 'entitlement/set'; entitlement: SubscriptionEntitlement }
   | { type: 'preferences/set'; preferences: PrivacyPreferences }
@@ -115,8 +130,10 @@ function reducer(state: State, action: Action): State {
         assets: action.assets,
         status: action.assets.length === 0 ? 'empty' : 'ready',
       };
-    case 'documents/set':
-      return { ...state, documents: action.documents };
+    case 'profile/set':
+      return { ...state, profile: action.profile };
+    case 'reminders/set':
+      return { ...state, reminders: action.reminders };
     case 'consent/set':
       return { ...state, consent: action.consent };
     case 'entitlement/set':
@@ -128,7 +145,13 @@ function reducer(state: State, action: Action): State {
     case 'offline/set':
       return { ...state, offline: action.offline };
     case 'reset':
-      return { ...initialState, status: 'empty', onboarding: state.onboarding };
+      // Hesap ve onboarding korunur; silinen şey kullanıcının verisidir.
+      return {
+        ...initialState,
+        status: 'empty',
+        onboarding: state.onboarding,
+        profile: state.profile,
+      };
     default:
       return state;
   }
@@ -136,12 +159,21 @@ function reducer(state: State, action: Action): State {
 
 interface AppContextValue extends State {
   isPremium: boolean;
+  /** Kayıt tamam ve e-posta doğrulanmış mı. */
+  isAuthenticated: boolean;
+  /** Elle güncellenmesi gereken, süresi geçmiş varlıklar. */
+  staleAssets: Asset[];
   reload: () => Promise<void>;
   revaluate: (assets?: Asset[]) => Promise<void>;
   addAsset: (asset: Asset) => Promise<void>;
   updateAsset: (asset: Asset) => Promise<void>;
   deleteAsset: (assetId: string) => Promise<void>;
-  addDocument: (document: LocalDocumentRecord) => Promise<void>;
+  registerAccount: (input: RegistrationInput) => Promise<string>;
+  verifyEmail: (code: string) => Promise<{ ok: boolean; message: string }>;
+  resendCode: () => Promise<string>;
+  signOut: () => Promise<void>;
+  setReminderFrequency: (frequency: ReminderFrequency) => Promise<void>;
+  dismissReminder: () => Promise<void>;
   setRankConsent: (granted: boolean) => Promise<void>;
   purchasePremium: (productId: string) => Promise<void>;
   restorePurchases: () => Promise<void>;
@@ -173,18 +205,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const reload = useCallback(async () => {
     dispatch({ type: 'load/start' });
     try {
-      const [assets, documents, consent, entitlement, preferences, onboarding] = await Promise.all([
-        localStore.read<Asset[]>(STORAGE_KEYS.assets, []),
-        localStore.read<LocalDocumentRecord[]>(STORAGE_KEYS.documents, []),
-        rankService.getConsent(),
-        subscriptionService.getEntitlement(),
-        privacyService.getPreferences(),
-        localStore.read<OnboardingState>(STORAGE_KEYS.onboarding, DEFAULT_ONBOARDING),
-      ]);
+      const [assets, profile, reminders, consent, entitlement, preferences, onboarding] =
+        await Promise.all([
+          localStore.read<Asset[]>(STORAGE_KEYS.assets, []),
+          authService.getProfile(),
+          reminderService.getSettings(),
+          rankService.getConsent(),
+          subscriptionService.getEntitlement(),
+          privacyService.getPreferences(),
+          localStore.read<OnboardingState>(STORAGE_KEYS.onboarding, DEFAULT_ONBOARDING),
+        ]);
 
       dispatch({
         type: 'load/success',
-        payload: { assets, documents, consent, entitlement, preferences, onboarding },
+        payload: { assets, profile, reminders, consent, entitlement, preferences, onboarding },
       });
       await revaluate(assets);
     } catch (error) {
@@ -210,10 +244,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AppContextValue>(() => {
     const isPremium = state.entitlement.active && state.entitlement.tier === 'premium';
+    const isAuthenticated = state.profile != null && state.profile.emailVerified;
+    const staleAssets = reminderService.findStaleAssets(state.assets, state.reminders);
 
     return {
       ...state,
       isPremium,
+      isAuthenticated,
+      staleAssets,
       reload,
       revaluate: (assets?: Asset[]) => revaluate(assets ?? state.assets),
 
@@ -232,10 +270,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await commitAssets(state.assets.filter((asset) => asset.id !== assetId));
       },
 
-      addDocument: async (document: LocalDocumentRecord) => {
-        const next = [document, ...state.documents];
-        dispatch({ type: 'documents/set', documents: next });
-        await localStore.write(STORAGE_KEYS.documents, next);
+      registerAccount: async (input: RegistrationInput) => {
+        const { profile, demoCode } = await authService.register(input);
+        dispatch({ type: 'profile/set', profile });
+        return demoCode;
+      },
+
+      verifyEmail: async (code: string) => {
+        const result = await authService.verifyEmail(code);
+        if (result.ok) {
+          const profile = await authService.getProfile();
+          dispatch({ type: 'profile/set', profile });
+          // Hatırlatma her zaman açık; hesap kurulur kurulmaz planlanır.
+          await reminderService.schedule(state.reminders);
+        }
+        return result;
+      },
+
+      resendCode: async () => authService.resendCode(),
+
+      signOut: async () => {
+        await authService.signOut();
+        await reminderService.cancelAll();
+        dispatch({ type: 'profile/set', profile: null });
+      },
+
+      setReminderFrequency: async (frequency: ReminderFrequency) => {
+        const reminders = await reminderService.setFrequency(frequency);
+        dispatch({ type: 'reminders/set', reminders });
+      },
+
+      dismissReminder: async () => {
+        const reminders = await reminderService.markPrompted();
+        dispatch({ type: 'reminders/set', reminders });
       },
 
       setRankConsent: async (granted: boolean) => {
@@ -280,8 +347,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
 
       loadDemoData: async () => {
-        dispatch({ type: 'documents/set', documents: DEMO_DOCUMENTS });
-        await localStore.write(STORAGE_KEYS.documents, DEMO_DOCUMENTS);
         await commitAssets(DEMO_ASSETS);
       },
 

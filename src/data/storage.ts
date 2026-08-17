@@ -204,11 +204,12 @@ export class EncryptedLocalStore {
 
 export const STORAGE_KEYS = {
   assets: 'assets',
-  documents: 'documents',
   rankConsent: 'rank-consent',
   subscription: 'subscription',
   preferences: 'preferences',
   onboarding: 'onboarding',
+  profile: 'profile',
+  reminders: 'reminders',
 } as const;
 
 export const localStore = new EncryptedLocalStore();

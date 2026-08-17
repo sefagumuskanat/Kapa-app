@@ -171,6 +171,7 @@ export const CATEGORY_EMOJI: Record<AssetCategory, string> = {
   bicycle: '🚲',
   furniture: '🛋️',
   collectible: '🏆',
+  property: '🏠',
   other: '📦',
 };
 

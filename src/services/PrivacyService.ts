@@ -10,8 +10,10 @@ import { localStore, STORAGE_KEYS } from '@/data/storage';
  */
 
 export interface PrivacyPreferences {
-  /** Sıralamaya katılım ayrı rıza ile yönetilir (bkz. RankService). */
-  adsEnabled: boolean;
+  /**
+   * Reklam tercihi burada YOK: ücretsiz kademede kapatılamaz, premium'da
+   * zaten gösterilmez. Bkz. AdService.
+   */
   biometricLockEnabled: boolean;
   /** Ürün analitiği — asla varlık verisi içermez. */
   anonymousDiagnosticsEnabled: boolean;
@@ -20,7 +22,6 @@ export interface PrivacyPreferences {
 }
 
 export const DEFAULT_PREFERENCES: PrivacyPreferences = {
-  adsEnabled: true,
   biometricLockEnabled: false,
   anonymousDiagnosticsEnabled: false,
   ageGatePassed: false,
@@ -87,10 +88,10 @@ class LocalPrivacyService implements IPrivacyService {
         description: 'Şifreli yerel depoda tutulur, hiçbir zaman gönderilmez.',
       },
       {
-        key: 'documents',
-        label: 'Belgeler ve OCR alanları',
-        location: 'device',
-        description: 'Yalnızca cihazda işlenir; görüntü yüklenmez.',
+        key: 'account',
+        label: 'Hesap bilgilerin',
+        location: 'server',
+        description: 'Ad, e-posta, doğum tarihi ve meslek. (Demoda cihazda tutuluyor.)',
       },
       {
         key: 'priceQuery',

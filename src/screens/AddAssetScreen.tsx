@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   Button,
@@ -9,60 +9,40 @@ import {
   CelebrationOverlay,
   Chip,
   Disclaimer,
+  DynamicForm,
   Input,
-  SegmentedControl,
 } from '@/components';
+import { initialValues, validateFields } from '@/components/DynamicForm';
 import { Screen } from '@/components/Screen';
+import {
+  AssetTypeDef,
+  AVAILABLE_CATEGORIES,
+  getAssetType,
+  searchAssetTypes,
+} from '@/catalog';
 import {
   CATEGORY_EMOJI,
   Celebration,
-  CONDITION_EMOJI,
   pickCelebration,
   UNKNOWN_VALUE_CELEBRATION,
 } from '@/content/vibes';
 import type { RootStackParamList } from '@/navigation/types';
-import { catalogService, FREE_ASSET_LIMIT, valuationService } from '@/services';
+import { FREE_ASSET_LIMIT, valuationService } from '@/services';
 import { useApp } from '@/store/AppContext';
-import { TOUCH_TARGET, colors, fonts, radius, spacing, typography } from '@/theme';
-import {
-  AcquisitionLot,
-  AcquisitionSource,
-  Asset,
-  AssetCategory,
-  AssetCondition,
-  CatalogItem,
-  MeasurementUnit,
-} from '@/types';
+import { colors, fonts, radius, spacing, TOUCH_TARGET, typography } from '@/theme';
+import { AcquisitionSource, Asset, AssetCondition } from '@/types';
+import { CATEGORY_LABEL } from '@/utils/format';
 import { createId, nowIso } from '@/utils/id';
-import { CATEGORY_LABEL, CONDITION_LABEL, UNIT_LABEL } from '@/utils/format';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddAsset'>;
 
-type Step = 'category' | 'source' | 'details' | 'lot';
-type EntryMode = 'catalog' | 'manual';
-
-const CATEGORIES: AssetCategory[] = [
-  'gold',
-  'silver',
-  'jewelry',
-  'watch',
-  'electronics',
-  'photography',
-  'vehicle',
-  'bicycle',
-  'furniture',
-  'collectible',
-  'other',
-];
-
-const CONDITIONS: AssetCondition[] = ['new', 'likeNew', 'good', 'fair', 'poor'];
-const UNITS: MeasurementUnit[] = ['piece', 'gram', 'carat', 'set'];
+type Step = 'pick' | 'details' | 'price';
 
 const SOURCE_LABEL: Record<AcquisitionSource, string> = {
-  purchase: 'Satın aldım',
-  gift: 'Hediye',
-  inheritance: 'Miras',
-  unknown: 'Hatırlamıyorum',
+  purchase: '💳 Satın aldım',
+  gift: '🎁 Hediye geldi',
+  inheritance: '👵 Miras',
+  unknown: '🤷 Hatırlamıyorum',
 };
 
 export function AddAssetScreen({ navigation, route }: Props) {
@@ -73,117 +53,138 @@ export function AddAssetScreen({ navigation, route }: Props) {
     [assets, editingId],
   );
 
-  const [step, setStep] = useState<Step>(editing ? 'details' : 'category');
-  // Yeni kayıtta katalog varsayılan: eşleşme güven skorunu belirgin şekilde yükseltir.
-  const [entryMode, setEntryMode] = useState<EntryMode>(
-    editing && !editing.catalogRef ? 'manual' : 'catalog',
+  const [step, setStep] = useState<Step>(editing ? 'details' : 'pick');
+  const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<string | 'all'>('all');
+  const [selectedType, setSelectedType] = useState<AssetTypeDef | null>(
+    editing ? getAssetType(editing.typeId) : null,
   );
-  const [category, setCategory] = useState<AssetCategory>(editing?.category ?? 'gold');
-  const [catalogQuery, setCatalogQuery] = useState('');
-  const [catalogResults, setCatalogResults] = useState<CatalogItem[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(false);
-  const [catalogRef, setCatalogRef] = useState<string | undefined>(editing?.catalogRef);
 
   const [name, setName] = useState(editing?.name ?? '');
-  const [quantity, setQuantity] = useState(editing ? String(editing.quantity) : '1');
-  const [unit, setUnit] = useState<MeasurementUnit>(editing?.unit ?? 'piece');
-  const [condition, setCondition] = useState<AssetCondition>(editing?.condition ?? 'good');
-  const [declaredValue, setDeclaredValue] = useState(
-    editing?.declaredUnitValue != null ? String(editing.declaredUnitValue) : '',
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    initialValues(getAssetType(editing?.typeId)?.fields ?? [], editing?.attributes),
   );
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState(editing?.notes ?? '');
 
-  const [lots, setLots] = useState<AcquisitionLot[]>(editing?.lots ?? []);
-  const [lotQuantity, setLotQuantity] = useState('1');
-  const [lotUnitCost, setLotUnitCost] = useState('');
-  const [lotCostUnknown, setLotCostUnknown] = useState(false);
-  const [lotSource, setLotSource] = useState<AcquisitionSource>('purchase');
-  const [lotDate, setLotDate] = useState(new Date().toISOString().slice(0, 10));
+  // Fiyat adımı
+  const [purchasePrice, setPurchasePrice] = useState(
+    editing?.lots[0]?.unitCost != null ? String(editing.lots[0].unitCost) : '',
+  );
+  const [purchaseUnknown, setPurchaseUnknown] = useState(
+    editing != null && editing.lots.length > 0 && editing.lots[0].unitCost == null,
+  );
+  const [purchaseSource, setPurchaseSource] = useState<AcquisitionSource>(
+    editing?.lots[0]?.source ?? 'purchase',
+  );
+  const [saleValue, setSaleValue] = useState(
+    editing?.declaredSaleValue != null ? String(editing.declaredSaleValue) : '',
+  );
+  const [fastPrice, setFastPrice] = useState(
+    editing?.manualPrices ? String(editing.manualPrices.fast) : '',
+  );
+  const [normalPrice, setNormalPrice] = useState(
+    editing?.manualPrices ? String(editing.manualPrices.normal) : '',
+  );
+  const [patientPrice, setPatientPrice] = useState(
+    editing?.manualPrices ? String(editing.manualPrices.patient) : '',
+  );
 
+  // Alert her platformda görünmüyor (web'de hiç çıkmıyor); hatalar alan altında da yazılır.
+  const [priceErrors, setPriceErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [nameError, setNameError] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   const [celebratedValue, setCelebratedValue] = useState<number | null>(null);
 
   const atFreeLimit = !isPremium && !editing && assets.length >= FREE_ASSET_LIMIT;
 
-  useEffect(() => {
-    if (entryMode !== 'catalog') return;
-    let active = true;
-    setCatalogLoading(true);
-    void catalogService.search(catalogQuery, category).then((results) => {
-      if (!active) return;
-      setCatalogResults(results);
-      setCatalogLoading(false);
-    });
-    return () => {
-      active = false;
-    };
-  }, [entryMode, catalogQuery, category]);
+  const results = useMemo(
+    () => searchAssetTypes(query, category === 'all' ? undefined : (category as never)),
+    [query, category],
+  );
 
-  const selectCatalogItem = (item: CatalogItem) => {
-    setCatalogRef(item.ref);
-    setName(item.name);
-    setUnit(item.unit);
+  const chooseType = (type: AssetTypeDef) => {
+    setSelectedType(type);
+    setValues(initialValues(type.fields));
+    if (!name.trim()) setName(type.label);
     setStep('details');
   };
 
-  const addLot = () => {
-    const parsedQuantity = parseNumber(lotQuantity);
-    if (parsedQuantity == null || parsedQuantity <= 0) {
-      Alert.alert('Miktar olmadı', 'Sıfırdan büyük bir sayı yazman lazım.');
+  const goToPrice = () => {
+    if (!selectedType) return;
+    const errors = validateFields(selectedType.fields, values);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+    if (!name.trim()) {
+      Alert.alert('İsim lazım', 'Bu şeye bir isim ver ki listede tanıyalım.');
       return;
     }
-    const unitCost = lotCostUnknown ? null : parseNumber(lotUnitCost);
-    if (!lotCostUnknown && (unitCost == null || unitCost < 0)) {
-      Alert.alert('Fiyat lazım', 'Ya bir rakam yaz ya da “valla hatırlamıyorum” de.');
-      return;
-    }
-
-    setLots((current) => [
-      ...current,
-      {
-        id: createId('lot'),
-        assetId: editing?.id ?? 'pending',
-        acquiredAt: parseDate(lotDate),
-        quantity: parsedQuantity,
-        unitCost,
-        currency: 'TRY',
-        source: lotSource,
-      },
-    ]);
-    setLotQuantity('1');
-    setLotUnitCost('');
-    setLotCostUnknown(false);
+    setStep('price');
   };
 
   const save = async () => {
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setNameError('Bir isim yaz, ne olduğunu bilelim.');
-      setStep('details');
-      return;
+    if (!selectedType) return;
+
+    const errors: Record<string, string> = {};
+
+    const parsedPurchase = purchaseUnknown ? null : parseNumber(purchasePrice);
+    if (!purchaseUnknown && (parsedPurchase == null || parsedPurchase < 0)) {
+      errors.purchase = 'Kaça aldığını yaz ya da “valla hatırlamıyorum” işaretle.';
     }
-    const parsedQuantity = parseNumber(quantity);
-    if (parsedQuantity == null || parsedQuantity <= 0) {
-      Alert.alert('Miktar olmadı', 'Kaç tane olduğunu sıfırdan büyük bir sayı olarak yaz.');
-      return;
+
+    let declaredSaleValue: number | null = null;
+    let manualPrices: Asset['manualPrices'] = null;
+
+    if (selectedType.pricing === 'manualSale') {
+      declaredSaleValue = parseNumber(saleValue);
+      if (declaredSaleValue == null || declaredSaleValue <= 0) {
+        errors.sale = 'Bugün satsan kaça gider? Bir rakam yaz.';
+      }
     }
+
+    if (selectedType.pricing === 'manual3') {
+      const fast = parseNumber(fastPrice);
+      const normal = parseNumber(normalPrice);
+      const patient = parseNumber(patientPrice);
+      if (normal == null || normal <= 0) {
+        errors.normal = 'En azından “normal satarsam” rakamını yaz.';
+      } else {
+        manualPrices = { fast: fast ?? normal, normal, patient: patient ?? normal };
+      }
+    }
+
+    setPriceErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
     setSaving(true);
     try {
       const id = editing?.id ?? createId('asset');
+      const quantity = parseNumber(values.adet ?? values.gram) ?? 1;
+
       const asset: Asset = {
         id,
-        name: trimmed,
-        category,
-        condition,
-        quantity: parsedQuantity,
-        unit,
-        catalogRef,
-        components: editing?.components ?? [],
-        lots: lots.map((lot) => ({ ...lot, assetId: id })),
-        declaredUnitValue: parseNumber(declaredValue),
+        name: name.trim(),
+        typeId: selectedType.id,
+        category: selectedType.category,
+        condition: (values.durum as AssetCondition) ?? editing?.condition ?? 'good',
+        quantity,
+        unit: selectedType.unit,
+        attributes: values,
+        components: [],
+        lots: [
+          {
+            id: editing?.lots[0]?.id ?? createId('lot'),
+            assetId: id,
+            acquiredAt: editing?.lots[0]?.acquiredAt ?? nowIso(),
+            quantity: 1,
+            unitCost: parsedPurchase,
+            currency: 'TRY',
+            source: purchaseUnknown ? 'unknown' : purchaseSource,
+          },
+        ],
+        declaredSaleValue,
+        manualPrices,
+        valueUpdatedAt: nowIso(),
         notes: notes.trim() || undefined,
         createdAt: editing?.createdAt ?? nowIso(),
         updatedAt: nowIso(),
@@ -191,19 +192,15 @@ export function AddAssetScreen({ navigation, route }: Props) {
       };
 
       if (editing) {
-        // Düzenlemede kutlama yok — yeni bir şey kazanılmadı.
         await updateAsset(asset);
         navigation.goBack();
         return;
       }
 
       await addAsset(asset);
-      // Değerleme kaydettikten sonra hesaplandığı için kutlamayı burada bekletiyoruz.
       const snapshot = await valuationService.valuateAsset(asset);
       setCelebration(
-        snapshot.normalValue > 0
-          ? pickCelebration(snapshot.normalValue)
-          : UNKNOWN_VALUE_CELEBRATION,
+        snapshot.normalValue > 0 ? pickCelebration(snapshot.normalValue) : UNKNOWN_VALUE_CELEBRATION,
       );
       setCelebratedValue(snapshot.normalValue);
     } finally {
@@ -211,22 +208,18 @@ export function AddAssetScreen({ navigation, route }: Props) {
     }
   };
 
-  const dismissCelebration = () => {
-    setCelebration(null);
-    navigation.goBack();
-  };
-
   if (atFreeLimit) {
     return (
-      <Screen title="Varlık ekle" onBack={() => navigation.goBack()}>
+      <Screen title="Kasa doldu!" onBack={() => navigation.goBack()}>
         <Card style={styles.limitCard}>
-          <Ionicons name="lock-closed-outline" size={24} color={colors.gold} />
-          <Text style={[typography.heading, styles.limitTitle]}>Kasa doldu!</Text>
-          <Text style={[typography.body, styles.limitBody]}>
-            Bedava sürümde {FREE_ASSET_LIMIT} şey ekleyebiliyorsun. Bu kadar malın varsa premium'a geçme vaktin gelmiş demektir.
+          <Text style={styles.limitEmoji}>🔒</Text>
+          <Text style={[typography.heading, styles.limitTitle]}>Bedava sürüm doldu</Text>
+          <Text style={[typography.body, styles.muted]}>
+            Ücretsiz sürümde {FREE_ASSET_LIMIT} şey ekleyebiliyorsun. Bu kadar malın varsa
+            premium'a geçme vaktin gelmiş demektir.
           </Text>
           <Button
-            label="Premium’a bakayım"
+            label="Premium'a bakayım"
             onPress={() => navigation.replace('Paywall', { source: 'asset-limit' })}
             fullWidth
           />
@@ -239,7 +232,7 @@ export function AddAssetScreen({ navigation, route }: Props) {
     <Screen
       title={editing ? 'Düzenle' : 'Ne ekliyoruz?'}
       subtitle={STEP_SUBTITLE[step]}
-      onBack={() => navigation.goBack()}
+      onBack={() => (step === 'pick' || editing ? navigation.goBack() : setStep(prevStep(step)))}
     >
       <CelebrationOverlay
         visible={celebration != null}
@@ -247,286 +240,233 @@ export function AddAssetScreen({ navigation, route }: Props) {
         assetName={name.trim()}
         addedValue={celebratedValue}
         newTotal={portfolio?.totals.normal ?? null}
-        onDismiss={dismissCelebration}
+        onDismiss={() => {
+          setCelebration(null);
+          navigation.goBack();
+        }}
       />
 
-      <StepIndicator current={step} />
+      <StepBar current={step} />
 
-      {step === 'category' ? (
+      {/* 1 — Ne olduğunu bul */}
+      {step === 'pick' ? (
         <View style={styles.section}>
-          <Text style={[typography.subheading, styles.sectionTitle]}>Bu ne böyle?</Text>
-          <View style={styles.categoryGrid}>
-            {CATEGORIES.map((item) => {
-              const selected = item === category;
-              return (
-                <Pressable
-                  key={item}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  onPress={() => setCategory(item)}
-                  style={({ pressed }) => [
-                    styles.categoryTile,
-                    selected && styles.categoryTileSelected,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Text style={styles.categoryEmoji}>{CATEGORY_EMOJI[item]}</Text>
-                  <Text
-                    style={[
-                      typography.caption,
-                      styles.categoryLabel,
-                      selected && styles.categoryLabelSelected,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {CATEGORY_LABEL[item]}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Button label="Devam" onPress={() => setStep('source')} fullWidth />
-        </View>
-      ) : null}
-
-      {step === 'source' ? (
-        <View style={styles.section}>
-          <SegmentedControl<EntryMode>
-            value={entryMode}
-            onChange={setEntryMode}
-            segments={[
-              { value: 'catalog', label: '📋 Listeden seç' },
-              { value: 'manual', label: '✍️ Kendim yazayım' },
-            ]}
+          <Input
+            placeholder="🔍 Çeyrek altın, bilezik, arsa, airsoft…"
+            value={query}
+            onChangeText={setQuery}
+            autoCorrect={false}
+            autoFocus
           />
 
-          {entryMode === 'catalog' ? (
-            <View style={styles.section}>
-              <Input
-                placeholder={`${CATEGORY_EMOJI[category]} ${CATEGORY_LABEL[category]} ara`}
-                value={catalogQuery}
-                onChangeText={setCatalogQuery}
-                autoCorrect={false}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            <Chip label="Hepsi" selected={category === 'all'} onPress={() => setCategory('all')} tone="green" />
+            {AVAILABLE_CATEGORIES.map((item) => (
+              <Chip
+                key={item}
+                label={`${CATEGORY_EMOJI[item]} ${CATEGORY_LABEL[item]}`}
+                selected={category === item}
+                onPress={() => setCategory(item)}
+                tone="green"
               />
-              {catalogLoading ? (
-                <ActivityIndicator color={colors.textMuted} style={styles.loader} />
-              ) : catalogResults.length === 0 ? (
-                <Card>
-                  <Text style={[typography.body, styles.emptyCatalog]}>
-                    Burada öyle bir şey bulamadık. Kendin yazsan daha hızlı olur.
-                  </Text>
-                </Card>
-              ) : (
-                <View style={styles.list}>
-                  {catalogResults.map((item) => (
-                    <Pressable
-                      key={item.ref}
-                      accessibilityRole="button"
-                      onPress={() => selectCatalogItem(item)}
-                      style={({ pressed }) => [styles.catalogRow, pressed && styles.pressed]}
-                    >
-                      <View style={styles.catalogBody}>
-                        <Text style={[typography.bodyStrong, styles.catalogName]}>{item.name}</Text>
-                        <Text style={[typography.caption, styles.catalogMeta]}>
-                          birim: {UNIT_LABEL[item.unit]}
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
-          ) : (
-            <Card style={styles.section}>
-              <Text style={[typography.body, styles.manualHint]}>
-                Kendin yazarsan değeri kategoriye bakarak tahmin ederiz. Listeden seçtiğinden biraz daha az emin oluruz, o kadar.
+            ))}
+          </ScrollView>
+
+          {results.length === 0 ? (
+            <Card>
+              <Text style={[typography.body, styles.muted]}>
+                Öyle bir şey bulamadık. “Diğer (ne olursa)” seçip kendin yazabilirsin —
+                fiyatını da sen belirlersin.
               </Text>
-              <Button label="Tamam, yazayım" onPress={() => setStep('details')} fullWidth />
             </Card>
+          ) : (
+            <View style={styles.list}>
+              {results.map((type) => (
+                <Pressable
+                  key={type.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={type.label}
+                  onPress={() => chooseType(type)}
+                  style={({ pressed }) => [styles.typeRow, pressed && styles.pressed]}
+                >
+                  <Text style={styles.typeEmoji}>{type.emoji}</Text>
+                  <View style={styles.typeBody}>
+                    <Text style={[typography.bodyStrong, styles.typeName]}>{type.label}</Text>
+                    <Text style={[typography.caption, styles.muted]} numberOfLines={1}>
+                      {type.hint ?? PRICING_HINT[type.pricing]}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+                </Pressable>
+              ))}
+            </View>
           )}
         </View>
       ) : null}
 
-      {step === 'details' ? (
+      {/* 2 — Türe özel sorular */}
+      {step === 'details' && selectedType ? (
         <View style={styles.section}>
+          <View style={styles.selectedBanner}>
+            <Text style={styles.typeEmoji}>{selectedType.emoji}</Text>
+            <Text style={[typography.bodyStrong, styles.typeName]}>{selectedType.label}</Text>
+            {!editing ? (
+              <Pressable accessibilityRole="button" onPress={() => setStep('pick')}>
+                <Text style={[typography.caption, styles.link]}>Değiştir</Text>
+              </Pressable>
+            ) : null}
+          </View>
+
           <Input
-            label="Adı ne?"
-            placeholder="Mesela: annemin bileziği"
+            label="Sen buna ne diyorsun?"
+            placeholder="Annemin bileziği, kırmızı araba…"
             value={name}
-            onChangeText={(value) => {
-              setName(value);
-              if (nameError) setNameError(null);
+            onChangeText={setName}
+          />
+
+          <DynamicForm
+            fields={selectedType.fields}
+            values={values}
+            errors={fieldErrors}
+            onChange={(key, value) => {
+              setValues((current) => ({ ...current, [key]: value }));
+              if (fieldErrors[key]) setFieldErrors((e) => ({ ...e, [key]: '' }));
             }}
-            error={nameError}
-          />
-
-          <View style={styles.row}>
-            <View style={styles.rowItem}>
-              <Input
-                label="Kaç tane / kaç gram"
-                value={quantity}
-                onChangeText={setQuantity}
-                keyboardType="decimal-pad"
-              />
-            </View>
-            <View style={styles.rowItem}>
-              <Text style={[typography.caption, styles.fieldLabel]}>Birim</Text>
-              <View style={styles.chipRow}>
-                {UNITS.map((item) => (
-                  <Chip
-                    key={item}
-                    label={UNIT_LABEL[item]}
-                    selected={unit === item}
-                    onPress={() => setUnit(item)}
-                    tone="green"
-                  />
-                ))}
-              </View>
-            </View>
-          </View>
-
-          <View>
-            <Text style={[typography.caption, styles.fieldLabel]}>Durum</Text>
-            <View style={styles.chipRow}>
-              {CONDITIONS.map((item) => (
-                <Chip
-                  key={item}
-                  label={`${CONDITION_EMOJI[item]} ${CONDITION_LABEL[item]}`}
-                  selected={condition === item}
-                  onPress={() => setCondition(item)}
-                  tone="green"
-                />
-              ))}
-            </View>
-          </View>
-
-          <Input
-            label="Sence kaç eder? (isteğe bağlı)"
-            placeholder="Tanesi kaç para"
-            hint="Boş bırak, biz tahmin ederiz."
-            value={declaredValue}
-            onChangeText={setDeclaredValue}
-            keyboardType="decimal-pad"
-            suffix="₺"
           />
 
           <Input
-            label="Not düşmek istersen"
-            placeholder="Kutusu var, faturası duruyor…"
+            label="Not (isteğe bağlı)"
+            placeholder="Faturası var, kutusu duruyor…"
             value={notes}
             onChangeText={setNotes}
             multiline
           />
 
-          <Button label="Devam" onPress={() => setStep('lot')} fullWidth />
+          <Button label="Devam" onPress={goToPrice} fullWidth />
         </View>
       ) : null}
 
-      {step === 'lot' ? (
+      {/* 3 — Fiyat */}
+      {step === 'price' && selectedType ? (
         <View style={styles.section}>
           <Card style={styles.section}>
-            <Text style={[typography.subheading, styles.sectionTitle]}>Kaça almıştın?</Text>
-            <Text style={[typography.caption, styles.hint]}>
-              Farklı zamanlarda aldıysan her alımı ayrı ekle. Hatırlamıyorsan da dert etme, “bilmiyorum” de geç — biz de kimseye bildiğimizi söylemeyiz.
+            <Text style={[typography.subheading, styles.cardTitle]}>💳 Kaça almıştın?</Text>
+            <Text style={[typography.caption, styles.muted]}>
+              Bunu kâr mı ettin zarar mı ettin hesaplamak için soruyoruz. Hatırlamıyorsan da
+              olur, uydurmayız.
             </Text>
 
-            <View style={styles.row}>
-              <View style={styles.rowItem}>
-                <Input
-                  label="Miktar"
-                  value={lotQuantity}
-                  onChangeText={setLotQuantity}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-              <View style={styles.rowItem}>
-                <Input
-                  label="Tarih"
-                  value={lotDate}
-                  onChangeText={setLotDate}
-                  placeholder="YYYY-AA-GG"
-                  autoCapitalize="none"
-                />
-              </View>
-            </View>
-
             <Input
-              label="Tanesi kaça"
-              value={lotCostUnknown ? '' : lotUnitCost}
-              onChangeText={setLotUnitCost}
+              label="Alış fiyatı"
+              value={purchaseUnknown ? '' : purchasePrice}
+              onChangeText={setPurchasePrice}
               keyboardType="decimal-pad"
-              editable={!lotCostUnknown}
               suffix="₺"
-              placeholder={lotCostUnknown ? 'Bilinmiyor' : '0'}
+              editable={!purchaseUnknown}
+              placeholder={purchaseUnknown ? 'Bilinmiyor' : '0'}
+              error={priceErrors.purchase}
             />
 
             <Pressable
               accessibilityRole="checkbox"
-              accessibilityState={{ checked: lotCostUnknown }}
-              onPress={() => setLotCostUnknown((value) => !value)}
+              accessibilityState={{ checked: purchaseUnknown }}
+              onPress={() => {
+                setPurchaseUnknown((v) => !v);
+                setPriceErrors((e) => ({ ...e, purchase: '' }));
+              }}
               style={({ pressed }) => [styles.checkRow, pressed && styles.pressed]}
             >
-              <View style={[styles.checkbox, lotCostUnknown && styles.checkboxChecked]}>
-                {lotCostUnknown ? (
-                  <Ionicons name="checkmark" size={14} color={colors.background} />
+              <View style={[styles.checkbox, purchaseUnknown && styles.checkboxChecked]}>
+                {purchaseUnknown ? (
+                  <Ionicons name="checkmark" size={15} color={colors.background} />
                 ) : null}
               </View>
               <Text style={[typography.body, styles.checkLabel]}>Valla hatırlamıyorum</Text>
             </Pressable>
 
             <View>
-              <Text style={[typography.caption, styles.fieldLabel]}>Nasıl geldi bu sana?</Text>
+              <Text style={[typography.caption, styles.muted]}>Nasıl geldi bu sana?</Text>
               <View style={styles.chipRow}>
                 {(Object.keys(SOURCE_LABEL) as AcquisitionSource[]).map((item) => (
                   <Chip
                     key={item}
                     label={SOURCE_LABEL[item]}
-                    selected={lotSource === item}
+                    selected={purchaseSource === item}
                     onPress={() => {
-                      setLotSource(item);
-                      if (item === 'gift' || item === 'inheritance' || item === 'unknown') {
-                        setLotCostUnknown(true);
-                      }
+                      setPurchaseSource(item);
+                      if (item !== 'purchase') setPurchaseUnknown(true);
                     }}
                     tone="green"
                   />
                 ))}
               </View>
             </View>
-
-            <Button label="Ekle" onPress={addLot} variant="secondary" icon="add" fullWidth />
           </Card>
 
-          {lots.length > 0 ? (
-            <View style={styles.list}>
-              {lots.map((lot, index) => (
-                <View key={lot.id} style={styles.lotRow}>
-                  <View style={styles.lotBody}>
-                    <Text style={[typography.bodyStrong, styles.lotTitle]}>
-                      {index + 1}. alım · {lot.quantity} birim
-                    </Text>
-                    <Text style={[typography.caption, styles.lotMeta]}>
-                      {SOURCE_LABEL[lot.source]} ·{' '}
-                      {lot.unitCost == null ? 'kaça alındığı meçhul' : `${lot.unitCost} ₺/birim`}
-                    </Text>
-                  </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`${index + 1}. alımı sil`}
-                    onPress={() => setLots((current) => current.filter((c) => c.id !== lot.id))}
-                    style={styles.lotDelete}
-                  >
-                    <Ionicons name="trash-outline" size={18} color={colors.red} />
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <Text style={[typography.caption, styles.hint]}>
-              İstersen hiç girmeden de kaydet. O zaman kâr mı ettin zarar mı, onu hesaplayamayız sadece.
-            </Text>
-          )}
+          {/* Otomatik fiyatlanan: bilgi kartı */}
+          {selectedType.pricing === 'metal' ? (
+            <Card style={styles.autoCard}>
+              <Text style={[typography.subheading, styles.cardTitle]}>📈 Fiyatı biz takip ederiz</Text>
+              <Text style={[typography.body, styles.muted]}>
+                {selectedType.metal?.metal === 'gold' ? 'Altının' : 'Gümüşün'} güncel gram
+                fiyatına göre değerini kendimiz hesaplarız. Sen bir şey güncellemek zorunda
+                değilsin.
+              </Text>
+            </Card>
+          ) : null}
+
+          {/* Tek değer soranlar: pırlanta, ev, arsa */}
+          {selectedType.pricing === 'manualSale' ? (
+            <Card style={styles.section}>
+              <Text style={[typography.subheading, styles.cardTitle]}>🏷️ Bugün kaça gider?</Text>
+              <Text style={[typography.caption, styles.muted]}>
+                Bunun piyasa fiyatını otomatik bulamıyoruz, o yüzden sana soruyoruz.
+                Zaman zaman güncellemeni hatırlatacağız.
+              </Text>
+              <Input
+                label="Güncel satış değeri"
+                value={saleValue}
+                onChangeText={setSaleValue}
+                keyboardType="decimal-pad"
+                suffix="₺"
+                error={priceErrors.sale}
+              />
+            </Card>
+          ) : null}
+
+          {/* Üç fiyat soranlar: araç, elektronik, hobi… */}
+          {selectedType.pricing === 'manual3' ? (
+            <Card style={styles.section}>
+              <Text style={[typography.subheading, styles.cardTitle]}>🎯 Üç fiyat söyle</Text>
+              <Text style={[typography.caption, styles.muted]}>
+                Marka-model listesi tutmak ciddi bir iş, o yüzden uydurmuyoruz. Sen söyle,
+                biz toplayalım.
+              </Text>
+              <Input
+                label="🏃 Acil satarsam"
+                value={fastPrice}
+                onChangeText={setFastPrice}
+                keyboardType="decimal-pad"
+                suffix="₺"
+              />
+              <Input
+                label="🤝 Normal satarsam"
+                value={normalPrice}
+                onChangeText={setNormalPrice}
+                keyboardType="decimal-pad"
+                suffix="₺"
+                hint="Karnende bu rakam kullanılır."
+                error={priceErrors.normal}
+              />
+              <Input
+                label="🪑 Alıcıyı beklersem"
+                value={patientPrice}
+                onChangeText={setPatientPrice}
+                keyboardType="decimal-pad"
+                suffix="₺"
+              />
+            </Card>
+          ) : null}
 
           <Button
             label={editing ? 'Kaydet' : 'Ekle gitsin'}
@@ -542,16 +482,26 @@ export function AddAssetScreen({ navigation, route }: Props) {
   );
 }
 
-const STEP_SUBTITLE: Record<Step, string> = {
-  category: '1 / 4 · Nesi var bunun',
-  source: '2 / 4 · Listeden mi, elle mi',
-  details: '3 / 4 · Biraz detay',
-  lot: '4 / 4 · Kaça almıştın',
+const PRICING_HINT: Record<string, string> = {
+  metal: 'Fiyatını piyasadan biz takip ederiz.',
+  manualSale: 'Güncel değerini sen girersin.',
+  manual3: 'Üç fiyatı sen belirlersin.',
 };
 
-const STEP_ORDER: Step[] = ['category', 'source', 'details', 'lot'];
+const STEP_SUBTITLE: Record<Step, string> = {
+  pick: '1 / 3 · Ne bu?',
+  details: '2 / 3 · Detaylar',
+  price: '3 / 3 · Fiyat',
+};
 
-function StepIndicator({ current }: { current: Step }) {
+const STEP_ORDER: Step[] = ['pick', 'details', 'price'];
+
+function prevStep(current: Step): Step {
+  const index = STEP_ORDER.indexOf(current);
+  return STEP_ORDER[Math.max(0, index - 1)];
+}
+
+function StepBar({ current }: { current: Step }) {
   const index = STEP_ORDER.indexOf(current);
   return (
     <View style={styles.steps}>
@@ -563,75 +513,59 @@ function StepIndicator({ current }: { current: Step }) {
 }
 
 function parseNumber(input: string): number | null {
-  const normalized = input.replace(/\s/g, '').replace(',', '.');
+  const normalized = input.replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
   if (!normalized) return null;
   const value = Number(normalized);
   return Number.isFinite(value) ? value : null;
 }
 
-function parseDate(input: string): string {
-  const parsed = new Date(input);
-  return Number.isNaN(parsed.getTime()) ? nowIso() : parsed.toISOString();
-}
-
 const styles = StyleSheet.create({
   section: { gap: spacing.md },
-  sectionTitle: { color: colors.text },
-  hint: { color: colors.textFaint },
-  fieldLabel: { color: colors.textMuted, marginBottom: spacing.xs },
-  loader: { paddingVertical: spacing.lg },
+  cardTitle: { color: colors.text },
+  muted: { color: colors.textMuted },
+  link: { color: colors.green, fontFamily: fonts.bodySemi },
   pressed: { opacity: 0.7 },
 
   steps: { flexDirection: 'row', gap: spacing.xs },
-  stepBar: { flex: 1, height: 3, borderRadius: 2, backgroundColor: colors.border },
+  stepBar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.border },
   stepBarActive: { backgroundColor: colors.green },
 
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  categoryTile: {
-    width: '31%',
-    minHeight: 72,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.xs,
-    padding: spacing.sm,
-    borderRadius: radius.lg,
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  categoryTileSelected: { borderColor: colors.green, backgroundColor: colors.cardElevated },
-  categoryEmoji: { fontSize: 24, lineHeight: 30 },
-  categoryLabel: { color: colors.textMuted, textAlign: 'center' },
-  categoryLabelSelected: { color: colors.green, fontFamily: fonts.bodySemi },
-
-  row: { flexDirection: 'row', gap: spacing.sm },
-  rowItem: { flex: 1 },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  chips: { gap: spacing.sm, paddingRight: spacing.md },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
 
   list: { gap: spacing.sm },
-  catalogRow: {
-    minHeight: TOUCH_TARGET,
+  typeRow: {
+    minHeight: TOUCH_TARGET + 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
+    gap: spacing.md,
     padding: spacing.md,
     borderRadius: radius.lg,
     backgroundColor: colors.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  catalogBody: { flex: 1, gap: 2 },
-  catalogName: { color: colors.text },
-  catalogMeta: { color: colors.textMuted },
-  emptyCatalog: { color: colors.textMuted },
-  manualHint: { color: colors.textMuted },
+  typeEmoji: { fontSize: 24, lineHeight: 30 },
+  typeBody: { flex: 1, gap: 2 },
+  typeName: { color: colors.text },
+
+  selectedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.cardElevated,
+  },
+
+  autoCard: { gap: spacing.sm, backgroundColor: colors.greenSoft, borderColor: colors.green },
 
   checkRow: { minHeight: TOUCH_TARGET, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   checkbox: {
-    width: 22,
-    height: 22,
+    width: 24,
+    height: 24,
     borderRadius: radius.sm,
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
@@ -639,22 +573,7 @@ const styles = StyleSheet.create({
   checkboxChecked: { backgroundColor: colors.green, borderColor: colors.green },
   checkLabel: { color: colors.text, flex: 1 },
 
-  lotRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.lg,
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  lotBody: { flex: 1, gap: 2 },
-  lotTitle: { color: colors.text },
-  lotMeta: { color: colors.textMuted },
-  lotDelete: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-
   limitCard: { gap: spacing.md, alignItems: 'flex-start' },
+  limitEmoji: { fontSize: 40, lineHeight: 48 },
   limitTitle: { color: colors.text },
-  limitBody: { color: colors.textMuted },
 });

@@ -77,9 +77,9 @@ sunucu kökünden çalışır. `scripts/build-offline-web.mjs` bu yolları belge
 getirir; sonuç klasör nereye kopyalanırsa kopyalansın, `KAPAMETRE-BASLAT.html` dosyasına
 çift tıklayarak `file://` üzerinden açılır. Node, sunucu veya internet gerekmez.
 
-İlk açılışta onboarding tamamlandığında demo portföy otomatik yüklenir
-(20g altın · 2 parti, Sony A7 IV seti, maliyeti bilinmeyen telefon, hediye bisiklet,
-pırlanta yüzük). Ayarlar → Demo bölümünden yeniden yüklenebilir.
+İlk açılışta demo portföy otomatik yüklenir: 22 ayar bilezik, çeyrek altın, gümüş külçe,
+pırlanta tektaş, Kadıköy dairesi, araba ve maliyeti bilinmeyen bir telefon — yani her
+fiyatlama modundan en az bir örnek. Ayarlar → Demo bölümünden yeniden yüklenebilir.
 
 ---
 
@@ -105,35 +105,46 @@ implementasyona geçmek için yalnızca export edilen örneği değiştirmek yet
 
 | Servis | Sorumluluk | Not |
 | --- | --- | --- |
-| `CatalogService` | Gömülü katalogda arama | Ağ yok, scraping yok |
-| `ValuationService` | 3 senaryolu değerleme + portföy özeti | Adapter zinciri (aşağıda) |
-| `MarketPriceService` | Kategori bazlı referans fiyat | Canlı fiyat **değil**; minimal payload |
+| `MetalPriceService` | Altın/gümüş gram fiyatı | Gerçek API iskeleti hazır, **şu an demo tablo** |
+| `ValuationService` | 3 senaryolu değerleme + portföy özeti | Üç fiyatlama modu (aşağıda) |
+| `AuthService` | Kayıt + e-posta doğrulama | Sunucu yok; kod ekranda gösterilir |
+| `ReminderService` | Bayat fiyat tespiti + bildirim | Kapatılamaz, sıklığı ayarlanır |
 | `RankService` | Opt-in, kohort bazlı sıralama | Takma kimlik, kullanıcı listesi yok |
 | `SubscriptionService` | Abonelik + restore purchases | Mock mağaza, demo fiyat |
-| `OCRService` | Belge tarama ve alan çıkarımı | Cihazda, yalnızca belge |
 | `PrivacyService` | Tercihler, veri envanteri, tüm veriyi silme | Şifreleme stub'ı |
-| `AdService` | Reklam alanı | Hedefleme yok, finansal veri taşımaz |
+| `AdService` | Reklam alanı | Bedavada kapanmaz, premium'da açılmaz |
 
-### Değerleme mantığı
+### Katalog ve fiyatlama
 
-`ValuationService` sıralı bir **adapter zinciri** kullanır; ilk çözen adapter kazanır:
+Her ürün türü `src/catalog/` altında kendi **sorularını** ve **fiyatlama modunu** taşır.
+Yeni bir tür eklemek için yeni ekran yazmak gerekmez; `DynamicForm` alanları kendisi basar.
 
-1. `CatalogAdapter` — katalog eşleşmesi (güvenilirlik kategoriye göre ölçeklenir)
-2. `DeclaredValueAdapter` — kullanıcının beyan ettiği referans değer
-3. `MarketAdapter` — kategori bazlı referans tablo
-4. `AcquisitionFallbackAdapter` — edinim maliyetinden türetim
+| Mod | Kimler | Nasıl hesaplanır |
+| --- | --- | --- |
+| `metal` | Altın, gümüş | saf gram × gram fiyatı × piyasa çarpanı |
+| `manualSale` | Pırlanta, ev, arsa, dükkân | kullanıcı güncel değeri girer, 3 senaryo türetilir |
+| `manual3` | Araç, elektronik, hobi, diğer | kullanıcı üç fiyatı da kendi girer |
 
-Bulunan birim değer üzerine:
+**Altın modeli.** Ziynet altınlarında sabit saf ağırlık (tam 6,608 g; çeyrek onun 1/4'ü),
+işçilikli takıda `gram × ayar milyemi`. Ayar milyemleri sektör standardıdır
+(22 ayar = 0,916). Sikkelerde darphane primi çarpan olarak eklenir (çeyrek ×1,06),
+işçilikli takıda satarken işçiliğin tamamı geri alınamadığı için geri dönüş oranı
+uygulanır (bilezik ×0,95). Eski tarih sikkeler ×1,02.
 
-- **kondisyon çarpanı** (değerli madenlerde uygulanmaz — ayar/gramaj belirleyicidir)
-- **alt parça katkısı** (ör. gövde + lens + çanta)
-- **likidite profili** — kategori bazlı hızlı satış iskontosu ve tok satıcı primi
+> **Marka/model listesi neden yok?** Araç, kamera, telefon için sahibinden benzeri bir
+> model veritabanı tutmak ciddi bir veri işi. Uydurma bir "önerilen fiyat" göstermektense
+> bu kalemlerde üç fiyatı kullanıcıya sorduk.
 
-uygulanır. Güven skoru bileşiktir: `kaynak güvenilirliği × 0.7 + veri eksiksizliği × 0.3`,
-ardından bayatlık cezası ve `[0.05, 0.92]` aralığına sıkıştırma. **Skor asla 1'e ulaşmaz.**
+Güven skoru bileşiktir: `kaynak güvenilirliği × 0.7 + veri eksiksizliği × 0.3`, ardından
+elle girilen değerin bayatlığına göre ceza ve `[0.05, 0.92]` aralığına sıkıştırma.
+**Skor asla 1'e ulaşmaz.**
 
-`ValuationAdapter` arayüzü dışa açıktır; `valuationService.registerAdapter(...)` ile
-gerçek bir fiyat kaynağı zincirin başına eklenebilir.
+### Fiyat hatırlatması
+
+Altın ve gümüş otomatik güncellenir. Diğer her şeyin fiyatını kullanıcı girdiği için
+bayatlar; `ReminderService` süresi geçenleri bulur, yerel bildirim planlar ve ana ekranda
+şerit gösterir. **Hatırlatma kapatılamaz**, yalnızca sıklığı seçilir (haftalık → 3 aylık,
+varsayılan aylık). Bildirim izni yoksa uygulama içi şerit yine çıkar.
 
 ### Bilinmeyen maliyet
 
@@ -146,7 +157,9 @@ Bir varlığın partilerinden **herhangi biri** maliyetsizse toplam maliyet iddi
 ## Privacy-first mimari
 
 - Tüm varlık ve belge verisi **cihazda** `EncryptedLocalStore` içinde tutulur.
-- Sunucuya giden tek fiyat sorgusu payload'ı: `{ category, unit, currency }`.
+- Kayıt bilgileri (ad, e-posta, doğum tarihi, meslek) hesap için tutulur; **varlık verisi
+  hesaba bağlanmaz**, cihazda kalır.
+- Maden fiyatı sorgusu yalnızca `{ metal, currency }` taşır — neyin var bilgisi gitmez.
 - Sıralama açıksa giden tek payload: `{ pseudonymId, normalValueBucket, cohort }` —
   ham değer bile gönderilmez, kova etiketine indirgenir.
 - Reklam isteği yalnızca `{ slot, locale }` taşır; finansal veriyle hedefleme yapılmaz.
@@ -196,14 +209,17 @@ Düzenlemede kutlama çıkmaz — yeni bir şey kazanılmadı.
 
 | # | Ekran | İçerik |
 | --- | --- | --- |
-| 1 | Onboarding | KAPA açılımı, 3 tanıtım adımı, 13+ yaş kapısı, ayrı sıralama rızası |
-| 2 | Karnem (Home) | Karne kartı, toplam, 3 senaryo, donut grafik, son eklenenler |
-| 3 | Neyim var (Liste) | Kategori filtresi, arama, sıralama, isim + değer + kâr/zarar |
-| 4 | Ekleme | 4 adım: kategori → katalog/manuel → detay → alım · sonunda kutlama |
-| 5 | Asset Detail | 3 değer kartı, güven + kaynak, edinim kırılımı, parçalar, düzenle |
-| 6 | Ranking | Maskeli sıralama, premium teaser, gönderilen veri şeffaflığı |
-| 7 | Paywall | Mock fiyatlar, restore purchases stub |
-| 8 | Settings / Privacy Center | Veri silme, rıza, reklam, biyometrik kilit |
+| 1 | Onboarding | KAPA açılımı, 3 tanıtım adımı, sıralama rızası |
+| 2 | Kayıt | Ad, soyad, doğum tarihi, e-posta, aramalı meslek listesi |
+| 3 | E-posta doğrulama | 6 haneli kod (demo: ekranda gösterilir) |
+| 4 | Karnem (Home) | Karne, toplam, "… liralık adamsın", paylaş, hatırlatma şeridi |
+| 5 | Mal Varlığım | Filtre, arama, sıralama, kalem başına ve toplam kâr/zarar |
+| 6 | Ekleme | 3 adım: türü ara → türe özel sorular → fiyat · sonunda kutlama |
+| 7 | Varlık detayı | 3 değer, güven + kaynak, bilgiler, alım, değeri güncelle |
+| 8 | Paylaşım | Sosyal medya kartı + paylaş |
+| 9 | Sıralama | Maskeli sıralama, premium teaser, gönderilen veri şeffaflığı |
+| 10 | Paywall | Mock fiyatlar, restore purchases stub |
+| 11 | Ayarlar | Hesap, hatırlatma sıklığı, gizlilik, veri silme |
 | 9 | OCR | Belge tarama stub'ı, çıkarılan alanlar + alan bazlı güven |
 
 Her ekran **loading skeleton, empty state, error state ve offline** durumlarını taşır.

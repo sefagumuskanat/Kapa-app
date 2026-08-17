@@ -19,6 +19,7 @@ export type AssetCategory =
   | 'bicycle'
   | 'furniture'
   | 'collectible'
+  | 'property'
   | 'other';
 
 export type AssetCondition = 'new' | 'likeNew' | 'good' | 'fair' | 'poor';
@@ -33,10 +34,11 @@ export type ValuationScenario = 'fast' | 'normal' | 'patient';
 
 /** Değer hangi veriden türetildi — sahte kesinlik yok, kaynak her zaman görünür. */
 export type ValuationSourceKind =
-  | 'mock-catalog'
-  | 'mock-market'
+  | 'metal-price'
   | 'user-declared'
-  | 'acquisition-fallback';
+  | 'user-three-prices'
+  | 'acquisition-fallback'
+  | 'unavailable';
 
 export interface ValuationSource {
   kind: ValuationSourceKind;
@@ -74,19 +76,35 @@ export interface AcquisitionLot {
   note?: string;
 }
 
+/** Kullanıcının üç senaryo için kendi girdiği fiyatlar. */
+export interface ManualPrices {
+  fast: number;
+  normal: number;
+  patient: number;
+}
+
 export interface Asset {
   id: string;
   name: string;
+  /** Katalogdaki tür tanımı (`AssetTypeDef.id`). Fiyatlama ve sorular buradan gelir. */
+  typeId: string;
   category: AssetCategory;
   condition: AssetCondition;
   quantity: number;
   unit: MeasurementUnit;
-  /** Katalog eşleşmesi varsa referansı; yoksa manuel giriştir. */
-  catalogRef?: string;
+  /** Türe özel cevaplar: gram, ayar, m², oda sayısı… */
+  attributes: Record<string, string>;
   components: AssetComponent[];
   lots: AcquisitionLot[];
-  /** Kullanıcının kendi beyan ettiği referans değer (opsiyonel). */
-  declaredUnitValue?: number | null;
+  /**
+   * Kullanıcının girdiği güncel satış değeri (pırlanta, ev, arsa gibi
+   * piyasa fiyatı otomatik çekilemeyen kalemler için).
+   */
+  declaredSaleValue?: number | null;
+  /** `manual3` fiyatlamada kullanıcının girdiği üç senaryo. */
+  manualPrices?: ManualPrices | null;
+  /** Elle güncellenen değerin en son ne zaman tazelendiği. */
+  valueUpdatedAt?: string | null;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -142,34 +160,6 @@ export interface PortfolioSnapshot {
   byCategory: CategoryBreakdown[];
 }
 
-export type DocumentKind = 'invoice' | 'warranty' | 'receipt' | 'certificate' | 'other';
-
-export interface ExtractedField {
-  key: string;
-  label: string;
-  value: string;
-  /** 0..1 — OCR alan bazlı güven. */
-  confidence: number;
-}
-
-/**
- * Cihazda kalan belge kaydı. Yalnızca BELGE taranır; ürün fotoğrafı yoktur.
- * `storageRef` şifreli yerel depo anahtarıdır, ham dosya yolu değildir.
- */
-export interface LocalDocumentRecord {
-  id: string;
-  title: string;
-  kind: DocumentKind;
-  capturedAt: string;
-  linkedAssetId: string | null;
-  extractedFields: ExtractedField[];
-  storageRef: string;
-  /** Hassas alanlar maskelendi mi. */
-  redacted: boolean;
-  /** Belge cihazdan hiç çıkmaz. */
-  neverUploaded: true;
-}
-
 export type RankCohort = 'starter' | 'builder' | 'established' | 'advanced';
 
 /** Sıralama katılımı ayrı ve açık rızaya bağlıdır. */
@@ -213,24 +203,45 @@ export interface RankResult {
   computedAt: string;
 }
 
-export interface CatalogItem {
-  ref: string;
-  name: string;
-  category: AssetCategory;
-  unit: MeasurementUnit;
-  /** Mock referans birim değeri. */
-  referenceUnitValue: number;
+
+/* ------------------------------------------------------------------ */
+/* Maden fiyatı                                                        */
+/* ------------------------------------------------------------------ */
+
+export type MetalKind = 'gold' | 'silver';
+
+/** Bir madenin gram cinsinden saf fiyatı. */
+export interface MetalQuote {
+  metal: MetalKind;
+  /** 1 gram saf madenin TL karşılığı. */
+  pricePerGram: number;
   currency: Currency;
-  keywords: string[];
+  source: ValuationSource;
+  /** Veri gerçek bir sağlayıcıdan mı geldi, yoksa demo tablosundan mı. */
+  isLive: boolean;
 }
 
-export interface MarketQuote {
-  category: AssetCategory;
-  unit: MeasurementUnit;
-  unitValue: number;
-  currency: Currency;
-  /** Kaynak mock'tur; canlı fiyat iddiası yoktur. */
-  source: ValuationSource;
-  /** 0..1 — kategori bazlı fiyat belirsizliği. */
-  reliability: number;
+/* ------------------------------------------------------------------ */
+/* Hesap ve hatırlatma                                                 */
+/* ------------------------------------------------------------------ */
+
+export interface UserProfile {
+  firstName: string;
+  lastName: string;
+  /** ISO-8601 (YYYY-AA-GG). */
+  birthDate: string;
+  email: string;
+  /** Meslek listesinden seçilen kimlik. */
+  professionId: string;
+  emailVerified: boolean;
+  createdAt: string;
+}
+
+/** Elle güncellenen değerler için hatırlatma sıklığı. */
+export type ReminderFrequency = 'weekly' | 'biweekly' | 'monthly' | 'quarterly';
+
+export interface ReminderSettings {
+  /** Hatırlatma her zaman açık; kullanıcı yalnızca sıklığını değiştirir. */
+  frequency: ReminderFrequency;
+  lastPromptedAt: string | null;
 }
