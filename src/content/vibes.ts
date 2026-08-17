@@ -172,6 +172,8 @@ export const CATEGORY_EMOJI: Record<AssetCategory, string> = {
   furniture: '🛋️',
   collectible: '🏆',
   property: '🏠',
+  currency: '💵',
+  crypto: '₿',
   other: '📦',
 };
 
@@ -214,12 +216,12 @@ export const EMPTY = {
   home: {
     emoji: '🪹',
     title: 'Kasa bomboş',
-    line: 'Daha hiçbir şey eklemedin. Şu haliyle sıfır paralık adamsın — ki bu düzeltilebilir bir durum.',
+    line: 'Daha hiçbir şey eklemedin. Şu haliyle tam olarak sıfır paralık adamsın — ki bu düzeltilebilir bir durum.',
   },
   assets: {
-    emoji: '📦',
-    title: 'Burada hiçbir şey yok',
-    line: 'Ne eklersen burada listelenir. Altın, telefon, bisiklet… ne varsa.',
+    emoji: '🕸️',
+    title: 'Burası örümcek bağlamış',
+    line: 'Tek bir şey bile eklememişsin. Altın mı var, dolar mı, arsa mı — yaz da görelim kaç paralık adamsın.',
   },
   search: {
     emoji: '🔍',

@@ -12,6 +12,7 @@ import { FREQUENCY_LABEL, privacyService } from '@/services';
 import { useApp } from '@/store/AppContext';
 import { colors, spacing, typography } from '@/theme';
 import { DELETE_ALL, NOT_A_BANK, WHAT_WE_DO } from '@/content/vibes';
+import { findProfession } from '@/data/professions';
 
 type Props = BottomTabScreenProps<TabParamList, 'Settings'>;
 
@@ -79,8 +80,12 @@ export function SettingsScreen({}: Props) {
       <Section title="Hesap">
         <ActionRow
           emoji="🙋"
-          title={profile ? `${profile.firstName} ${profile.lastName}` : 'Hesap yok'}
-          description={profile?.email ?? '—'}
+          title={profile ? profile.firstName : 'Hesap yok'}
+          description={
+            profile
+              ? `${profile.birthYear} doğumlu · ${findProfession(profile.professionId)?.label ?? '—'}`
+              : '—'
+          }
           onPress={() => {}}
         />
         <ActionRow

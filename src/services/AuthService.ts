@@ -3,127 +3,100 @@ import { UserProfile } from '@/types';
 import { nowIso } from '@/utils/id';
 
 /**
- * AuthService — kayıt ve e-posta doğrulama.
+ * AuthService — kayıt.
  *
- * DÜRÜSTLÜK NOTU
- * Gerçek e-posta doğrulaması sunucu gerektirir; bu demoda sunucu yok.
- * Bu yüzden doğrulama kodu cihazda üretilir ve kullanıcıya ekranda gösterilir.
- * Uygulama bunu "e-posta gönderdik" diye yutturmaz — ekranda demo olduğu yazar.
+ * Bilinçli olarak minimum veri: ad, doğum yılı, meslek. E-posta sorulmuyor
+ * çünkü doğrulaması sunucu ister ve doğrulayamayacağımız bir veriyi
+ * toplamanın anlamı yok. Yaş kontrolü için yıl yeterli.
  *
- * Gerçek uçlar bağlanacağı zaman değişmesi gereken tek yer bu dosyadır:
- * `register` → POST /auth/register, `verify` → POST /auth/verify.
+ * İnsan doğrulaması da en basit hâliyle: iki basamaklı bir toplama sorusu.
+ * Bot caydırıcıdır, kullanıcıyı yormaz, üçüncü tarafa veri göndermez.
  */
+
+export const MIN_AGE = 13;
 
 export interface RegistrationInput {
   firstName: string;
-  lastName: string;
-  birthDate: string;
-  email: string;
+  birthYear: string;
   professionId: string;
+}
+
+/** Basit insan doğrulaması sorusu. */
+export interface HumanCheck {
+  a: number;
+  b: number;
+  question: string;
 }
 
 export interface IAuthService {
   getProfile(): Promise<UserProfile | null>;
-  /**
-   * Bekleyen demo doğrulama kodu.
-   * Sunucu olmadığı için kod cihazda tutuluyor ve ekranda gösteriliyor;
-   * doğrulama ekranı bunu navigasyon parametresi yerine buradan okur
-   * (koşullu navigasyonda parametre kaybolabiliyor).
-   */
-  peekDemoCode(): Promise<string | null>;
-  register(input: RegistrationInput): Promise<{ profile: UserProfile; demoCode: string }>;
-  verifyEmail(code: string): Promise<{ ok: boolean; message: string }>;
-  resendCode(): Promise<string>;
+  register(input: RegistrationInput): Promise<UserProfile>;
   signOut(): Promise<void>;
   validate(input: RegistrationInput): Record<string, string>;
+  createHumanCheck(): HumanCheck;
+  verifyHumanCheck(check: HumanCheck, answer: string): boolean;
 }
 
-const CODE_KEY = 'auth-demo-code';
 const simulate = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function generateCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
-class MockAuthService implements IAuthService {
+class LocalAuthService implements IAuthService {
   async getProfile(): Promise<UserProfile | null> {
     return localStore.read<UserProfile | null>(STORAGE_KEYS.profile, null);
   }
 
-  async peekDemoCode(): Promise<string | null> {
-    return localStore.read<string | null>(CODE_KEY, null);
+  createHumanCheck(): HumanCheck {
+    const a = 2 + Math.floor(Math.random() * 8);
+    const b = 2 + Math.floor(Math.random() * 8);
+    return { a, b, question: `${a} + ${b} kaç eder?` };
+  }
+
+  verifyHumanCheck(check: HumanCheck, answer: string): boolean {
+    const parsed = Number(answer.trim());
+    return Number.isFinite(parsed) && parsed === check.a + check.b;
   }
 
   validate(input: RegistrationInput): Record<string, string> {
     const errors: Record<string, string> = {};
+
     if (input.firstName.trim().length < 2) errors.firstName = 'Adını yazar mısın?';
-    if (input.lastName.trim().length < 2) errors.lastName = 'Soyadını da yazalım.';
 
-    if (!/^\S+@\S+\.\S+$/.test(input.email.trim())) {
-      errors.email = 'Bu e-posta doğru görünmüyor.';
-    }
-
-    const birth = new Date(input.birthDate);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.birthDate) || Number.isNaN(birth.getTime())) {
-      errors.birthDate = 'Tarihi YYYY-AA-GG şeklinde yaz.';
-    } else {
-      const age = (Date.now() - birth.getTime()) / (365.25 * 86_400_000);
-      if (age < 13) errors.birthDate = 'Uygulama 13 yaş ve üzeri için.';
-      if (age > 120) errors.birthDate = 'Bu tarih biraz iddialı olmuş.';
+    const year = Number(input.birthYear);
+    const thisYear = new Date().getFullYear();
+    if (!/^\d{4}$/.test(input.birthYear.trim()) || !Number.isFinite(year)) {
+      errors.birthYear = 'Doğum yılını 4 haneli yaz (1990 gibi).';
+    } else if (year > thisYear) {
+      errors.birthYear = 'Gelecekten mi geldin?';
+    } else if (thisYear - year < MIN_AGE) {
+      errors.birthYear = `Uygulama ${MIN_AGE} yaş ve üzeri için.`;
+    } else if (thisYear - year > 120) {
+      errors.birthYear = 'Bu yıl biraz iddialı olmuş.';
     }
 
     if (!input.professionId) errors.professionId = 'Listeden bir meslek seç.';
     return errors;
   }
 
-  async register(input: RegistrationInput) {
+  async register(input: RegistrationInput): Promise<UserProfile> {
     const errors = this.validate(input);
     const first = Object.values(errors)[0];
     if (first) throw new Error(first);
 
-    await simulate(700);
+    await simulate(500);
 
     const profile: UserProfile = {
       firstName: input.firstName.trim(),
-      lastName: input.lastName.trim(),
-      birthDate: input.birthDate,
-      email: input.email.trim().toLocaleLowerCase('tr-TR'),
+      birthYear: Number(input.birthYear),
       professionId: input.professionId,
-      emailVerified: false,
       createdAt: nowIso(),
     };
 
-    const demoCode = generateCode();
     await localStore.write(STORAGE_KEYS.profile, profile);
-    await localStore.write(CODE_KEY, demoCode);
-    return { profile, demoCode };
-  }
-
-  async verifyEmail(code: string) {
-    await simulate(600);
-    const expected = await localStore.read<string | null>(CODE_KEY, null);
-    if (!expected) return { ok: false, message: 'Doğrulama kodu bulunamadı, yeniden gönder.' };
-    if (code.trim() !== expected) return { ok: false, message: 'Kod tutmadı, bir daha bak.' };
-
-    const profile = await this.getProfile();
-    if (!profile) return { ok: false, message: 'Kayıt bulunamadı.' };
-
-    await localStore.write(STORAGE_KEYS.profile, { ...profile, emailVerified: true });
-    await localStore.remove(CODE_KEY);
-    return { ok: true, message: 'Doğrulandı.' };
-  }
-
-  async resendCode(): Promise<string> {
-    await simulate(500);
-    const code = generateCode();
-    await localStore.write(CODE_KEY, code);
-    return code;
+    return profile;
   }
 
   async signOut(): Promise<void> {
     await localStore.remove(STORAGE_KEYS.profile);
-    await localStore.remove(CODE_KEY);
   }
 }
 
-export const authService: IAuthService = new MockAuthService();
+export const authService: IAuthService = new LocalAuthService();

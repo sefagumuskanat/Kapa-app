@@ -20,6 +20,8 @@ export type AssetCategory =
   | 'furniture'
   | 'collectible'
   | 'property'
+  | 'currency'
+  | 'crypto'
   | 'other';
 
 export type AssetCondition = 'new' | 'likeNew' | 'good' | 'fair' | 'poor';
@@ -225,15 +227,17 @@ export interface MetalQuote {
 /* Hesap ve hatırlatma                                                 */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Kayıt profili.
+ * E-posta sorulmuyor: doğrulama için sunucu gerekir, tutmadığımız veriyi
+ * istemek de gereksiz. Yaş kontrolü için yalnızca doğum yılı yeterli.
+ */
 export interface UserProfile {
   firstName: string;
-  lastName: string;
-  /** ISO-8601 (YYYY-AA-GG). */
-  birthDate: string;
-  email: string;
+  /** Yalnızca yıl — 13 yaş kontrolü için bu kadarı yetiyor. */
+  birthYear: number;
   /** Meslek listesinden seçilen kimlik. */
   professionId: string;
-  emailVerified: boolean;
   createdAt: string;
 }
 

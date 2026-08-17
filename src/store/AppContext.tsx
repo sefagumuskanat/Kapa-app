@@ -168,9 +168,7 @@ interface AppContextValue extends State {
   addAsset: (asset: Asset) => Promise<void>;
   updateAsset: (asset: Asset) => Promise<void>;
   deleteAsset: (assetId: string) => Promise<void>;
-  registerAccount: (input: RegistrationInput) => Promise<string>;
-  verifyEmail: (code: string) => Promise<{ ok: boolean; message: string }>;
-  resendCode: () => Promise<string>;
+  registerAccount: (input: RegistrationInput) => Promise<void>;
   signOut: () => Promise<void>;
   setReminderFrequency: (frequency: ReminderFrequency) => Promise<void>;
   dismissReminder: () => Promise<void>;
@@ -194,11 +192,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     await localStore.write(STORAGE_KEYS.assets, assets);
   }, []);
 
-  const revaluate = useCallback(async (assets?: Asset[]) => {
-    const target = assets ?? [];
+  /**
+   * Otomatik fiyat premium özelliği olduğu için değerleme kademeyi bilmek
+   * zorunda. Ücretsiz kullanıcıda piyasa çekilmez, elle girilen değer kullanılır.
+   */
+  const revaluate = useCallback(async (assets: Asset[], isPremium: boolean) => {
     dispatch({ type: 'valuation/start' });
-    const valuations = await valuationService.valuateAll(target);
-    const portfolio = valuationService.buildPortfolioSnapshot(target, valuations);
+    const valuations = await valuationService.valuateAll(assets, isPremium);
+    const portfolio = valuationService.buildPortfolioSnapshot(assets, valuations);
     dispatch({ type: 'valuation/done', valuations, portfolio });
   }, []);
 
@@ -220,7 +221,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         type: 'load/success',
         payload: { assets, profile, reminders, consent, entitlement, preferences, onboarding },
       });
-      await revaluate(assets);
+      await revaluate(assets, entitlement.active && entitlement.tier === 'premium');
     } catch (error) {
       dispatch({
         type: 'load/error',
@@ -234,17 +235,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [reload]);
 
   const commitAssets = useCallback(
-    async (assets: Asset[]) => {
+    async (assets: Asset[], isPremium: boolean) => {
       dispatch({ type: 'assets/set', assets });
       await persistAssets(assets);
-      await revaluate(assets);
+      await revaluate(assets, isPremium);
     },
     [persistAssets, revaluate],
   );
 
   const value = useMemo<AppContextValue>(() => {
     const isPremium = state.entitlement.active && state.entitlement.tier === 'premium';
-    const isAuthenticated = state.profile != null && state.profile.emailVerified;
+    const isAuthenticated = state.profile != null;
     const staleAssets = reminderService.findStaleAssets(state.assets, state.reminders);
 
     return {
@@ -253,41 +254,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated,
       staleAssets,
       reload,
-      revaluate: (assets?: Asset[]) => revaluate(assets ?? state.assets),
+      revaluate: (assets?: Asset[]) => revaluate(assets ?? state.assets, isPremium),
 
       addAsset: async (asset: Asset) => {
-        await commitAssets([asset, ...state.assets]);
+        await commitAssets([asset, ...state.assets], isPremium);
       },
 
       updateAsset: async (asset: Asset) => {
         const next = state.assets.map((candidate) =>
           candidate.id === asset.id ? { ...asset, updatedAt: nowIso() } : candidate,
         );
-        await commitAssets(next);
+        await commitAssets(next, isPremium);
       },
 
       deleteAsset: async (assetId: string) => {
-        await commitAssets(state.assets.filter((asset) => asset.id !== assetId));
+        await commitAssets(state.assets.filter((asset) => asset.id !== assetId), isPremium);
       },
 
       registerAccount: async (input: RegistrationInput) => {
-        const { profile, demoCode } = await authService.register(input);
+        const profile = await authService.register(input);
         dispatch({ type: 'profile/set', profile });
-        return demoCode;
+        // Hatırlatma her zaman açık; hesap kurulur kurulmaz planlanır.
+        await reminderService.schedule(state.reminders);
       },
-
-      verifyEmail: async (code: string) => {
-        const result = await authService.verifyEmail(code);
-        if (result.ok) {
-          const profile = await authService.getProfile();
-          dispatch({ type: 'profile/set', profile });
-          // Hatırlatma her zaman açık; hesap kurulur kurulmaz planlanır.
-          await reminderService.schedule(state.reminders);
-        }
-        return result;
-      },
-
-      resendCode: async () => authService.resendCode(),
 
       signOut: async () => {
         await authService.signOut();
@@ -315,6 +304,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       purchasePremium: async (productId: string) => {
         const entitlement = await subscriptionService.purchase(productId);
         dispatch({ type: 'entitlement/set', entitlement });
+        // Premium açılınca otomatik fiyatlar devreye girer, hemen yeniden hesapla.
+        await revaluate(state.assets, true);
       },
 
       restorePurchases: async () => {
@@ -325,6 +316,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       cancelPremium: async () => {
         const entitlement = await subscriptionService.cancel();
         dispatch({ type: 'entitlement/set', entitlement });
+        await revaluate(state.assets, false);
       },
 
       updatePreferences: async (patch: Partial<PrivacyPreferences>) => {
@@ -342,12 +334,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       deleteAllData: async () => {
         const { removedKeys } = await privacyService.deleteAllLocalData();
         dispatch({ type: 'reset' });
-        await revaluate([]);
+        await revaluate([], isPremium);
         return removedKeys;
       },
 
       loadDemoData: async () => {
-        await commitAssets(DEMO_ASSETS);
+        await commitAssets(DEMO_ASSETS, isPremium);
       },
 
       setOffline: (offline: boolean) => dispatch({ type: 'offline/set', offline }),

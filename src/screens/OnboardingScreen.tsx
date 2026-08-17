@@ -37,7 +37,7 @@ const SLIDES: Slide[] = [
 ];
 
 export function OnboardingScreen({}: Props) {
-  const { completeOnboarding, setRankConsent, loadDemoData } = useApp();
+  const { completeOnboarding, setRankConsent } = useApp();
   const [step, setStep] = useState(0);
   const [rankOptIn, setRankOptIn] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -57,8 +57,7 @@ export function OnboardingScreen({}: Props) {
     try {
       // Sıralama rızası yaş kapısından ayrı ve bağımsız olarak alınır.
       if (rankOptIn) await setRankConsent(true);
-      await loadDemoData();
-      // Onboarding ekranı stack'ten koşullu olarak kalkar; manuel reset gerekmez.
+      // Demo veri yüklemiyoruz: kullanıcı kendi listesini sıfırdan kursun.
       await completeOnboarding(true);
     } finally {
       setSubmitting(false);

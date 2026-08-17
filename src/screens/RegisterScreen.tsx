@@ -11,18 +11,19 @@ import { findProfession, PROFESSIONS } from '@/data/professions';
 import type { RootStackParamList } from '@/navigation/types';
 import { authService } from '@/services';
 import { useApp } from '@/store/AppContext';
-import { colors, fonts, radius, spacing, TOUCH_TARGET, typography } from '@/theme';
+import { colors, radius, spacing, TOUCH_TARGET, typography } from '@/theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Register'>;
 
-export function RegisterScreen({ navigation }: Props) {
+export function RegisterScreen({}: Props) {
   const { registerAccount } = useApp();
 
   const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [birthDate, setBirthDate] = useState('');
-  const [email, setEmail] = useState('');
+  const [birthYear, setBirthYear] = useState('');
   const [professionId, setProfessionId] = useState('');
+  // Soru bir kez üretilir; her tuşta değişirse kullanıcı çıldırır.
+  const [humanCheck, setHumanCheck] = useState(() => authService.createHumanCheck());
+  const [humanAnswer, setHumanAnswer] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pickerOpen, setPickerOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -30,24 +31,35 @@ export function RegisterScreen({ navigation }: Props) {
   const profession = findProfession(professionId);
 
   const submit = async () => {
-    const input = { firstName, lastName, birthDate, email, professionId };
+    const input = { firstName, birthYear, professionId };
     const found = authService.validate(input);
+
+    if (!authService.verifyHumanCheck(humanCheck, humanAnswer)) {
+      found.human = 'Sonuç tutmadı, bir daha bak.';
+    }
+
     setErrors(found);
-    if (Object.keys(found).length > 0) return;
+    if (Object.keys(found).length > 0) {
+      // Yanlış cevapta yeni soru ver, aynı soruyu deneyip durmasın.
+      if (found.human) {
+        setHumanCheck(authService.createHumanCheck());
+        setHumanAnswer('');
+      }
+      return;
+    }
 
     setSubmitting(true);
     try {
-      const code = await registerAccount(input);
-      navigation.replace('VerifyEmail', { demoCode: code });
+      await registerAccount(input);
     } catch (error) {
-      setErrors({ email: error instanceof Error ? error.message : 'Kayıt olmadı.' });
+      setErrors({ firstName: error instanceof Error ? error.message : 'Kayıt olmadı.' });
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Screen title="Hoş geldin" subtitle="Önce seni tanıyalım">
+    <Screen title="Hoş geldin" subtitle="Üç soru, bitti">
       <View style={styles.brand}>
         <Text style={styles.coin}>🪙</Text>
         <Text style={[typography.title, styles.wordmark]}>{BRAND.name}</Text>
@@ -55,42 +67,24 @@ export function RegisterScreen({ navigation }: Props) {
       </View>
 
       <Input
-        label="Adın"
+        label="Adın ne?"
         value={firstName}
         onChangeText={setFirstName}
         error={errors.firstName}
         placeholder="Mehmet"
         autoCapitalize="words"
       />
+
       <Input
-        label="Soyadın"
-        value={lastName}
-        onChangeText={setLastName}
-        error={errors.lastName}
-        placeholder="Yılmaz"
-        autoCapitalize="words"
-      />
-      <Input
-        label="Doğum tarihin"
-        value={birthDate}
-        onChangeText={setBirthDate}
-        error={errors.birthDate}
-        placeholder="1990-05-17"
-        hint="YYYY-AA-GG şeklinde yaz."
-        autoCapitalize="none"
-      />
-      <Input
-        label="E-posta"
-        value={email}
-        onChangeText={setEmail}
-        error={errors.email}
-        placeholder="mehmet@ornek.com"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoCorrect={false}
+        label="Doğum yılın"
+        value={birthYear}
+        onChangeText={(value) => setBirthYear(value.replace(/\D/g, '').slice(0, 4))}
+        error={errors.birthYear}
+        placeholder="1990"
+        keyboardType="number-pad"
+        hint="Sadece yıl. Yaşını kontrol etmek için, başka bir şey için değil."
       />
 
-      {/* Meslek — liste uzun olduğu için aramalı seçici */}
       <View style={styles.block}>
         <Text style={[typography.caption, styles.label]}>Ne iş yapıyorsun?</Text>
         <Pressable
@@ -100,7 +94,7 @@ export function RegisterScreen({ navigation }: Props) {
           style={({ pressed }) => [styles.picker, pressed && styles.pressed]}
         >
           <Text style={[typography.body, profession ? styles.pickerValue : styles.pickerPlaceholder]}>
-            {profession ? `${profession.label}` : 'Listeden seç'}
+            {profession ? profession.label : 'Listeden seç'}
           </Text>
           <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
         </Pressable>
@@ -109,18 +103,24 @@ export function RegisterScreen({ navigation }: Props) {
         ) : null}
       </View>
 
-      <Button
-        label="Devam"
-        onPress={() => void submit()}
-        loading={submitting}
-        size="lg"
-        fullWidth
-      />
+      {/* Basit insan doğrulaması — üçüncü tarafa veri gitmez. */}
+      <Card style={styles.humanCard}>
+        <Text style={[typography.subheading, styles.humanTitle]}>🤖 Robot değilsin, değil mi?</Text>
+        <Input
+          label={humanCheck.question}
+          value={humanAnswer}
+          onChangeText={(value) => setHumanAnswer(value.replace(/\D/g, '').slice(0, 3))}
+          keyboardType="number-pad"
+          placeholder="?"
+          error={errors.human}
+        />
+      </Card>
+
+      <Button label="Başlayalım" onPress={() => void submit()} loading={submitting} size="lg" fullWidth />
 
       <Card style={styles.noteCard}>
         <Text style={[typography.caption, styles.muted]}>
-          🔒 Bu bilgiler hesabın için. Neyin var, ne kadar ediyor — onlar telefonunda kalıyor,
-          kimseyle paylaşmıyoruz.
+          🔒 E-posta sormuyoruz, şifre yok, doğrulama yok. Bu üç bilgi de telefonunda kalıyor.
         </Text>
       </Card>
 
@@ -149,34 +149,26 @@ interface PickerProps {
   onClose: () => void;
 }
 
+function normalize(input: string): string {
+  return input
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ı/g, 'i')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c');
+}
+
 export function ProfessionPicker({ visible, selected, onSelect, onClose }: PickerProps) {
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(() => {
-    const q = query
-      .toLocaleLowerCase('tr-TR')
-      .replace(/ı/g, 'i')
-      .replace(/ğ/g, 'g')
-      .replace(/ü/g, 'u')
-      .replace(/ş/g, 's')
-      .replace(/ö/g, 'o')
-      .replace(/ç/g, 'c')
-      .trim();
+    const q = normalize(query).trim();
     if (!q) return PROFESSIONS;
-    return PROFESSIONS.filter((p) => {
-      const hay = `${p.label} ${p.group}`
-        .toLocaleLowerCase('tr-TR')
-        .replace(/ı/g, 'i')
-        .replace(/ğ/g, 'g')
-        .replace(/ü/g, 'u')
-        .replace(/ş/g, 's')
-        .replace(/ö/g, 'o')
-        .replace(/ç/g, 'c');
-      return hay.includes(q);
-    });
+    return PROFESSIONS.filter((p) => normalize(`${p.label} ${p.group}`).includes(q));
   }, [query]);
 
-  // Gruplara böl — arama varken düz liste daha okunur.
   const grouped = useMemo(() => {
     const map = new Map<string, typeof PROFESSIONS>();
     for (const item of filtered) {
@@ -188,11 +180,16 @@ export function ProfessionPicker({ visible, selected, onSelect, onClose }: Picke
   }, [filtered]);
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} transparent={false}>
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={styles.modalSafe} edges={['top', 'left', 'right']}>
         <View style={styles.modalHeader}>
           <Text style={[typography.heading, styles.modalTitle]}>Ne iş yapıyorsun?</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Kapat" onPress={onClose} style={styles.closeButton}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Kapat"
+            onPress={onClose}
+            style={styles.closeButton}
+          >
             <Ionicons name="close" size={22} color={colors.text} />
           </Pressable>
         </View>
@@ -265,6 +262,8 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
   error: { color: colors.red },
   muted: { color: colors.textMuted },
+  humanCard: { gap: spacing.sm },
+  humanTitle: { color: colors.text },
   noteCard: { backgroundColor: colors.card },
 
   modalSafe: { flex: 1, backgroundColor: colors.background },
@@ -275,7 +274,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   modalTitle: { flex: 1, color: colors.text },
-  closeButton: { width: TOUCH_TARGET, height: TOUCH_TARGET, alignItems: 'center', justifyContent: 'center' },
+  closeButton: {
+    width: TOUCH_TARGET,
+    height: TOUCH_TARGET,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   searchWrap: { paddingHorizontal: spacing.md, paddingBottom: spacing.sm },
   modalList: { paddingHorizontal: spacing.md, paddingBottom: spacing.xxxl, gap: spacing.lg },
   group: { gap: spacing.xs },

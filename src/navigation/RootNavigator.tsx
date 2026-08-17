@@ -11,7 +11,6 @@ import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { PaywallScreen } from '@/screens/PaywallScreen';
 import { RegisterScreen } from '@/screens/RegisterScreen';
 import { ShareScreen } from '@/screens/ShareScreen';
-import { VerifyEmailScreen } from '@/screens/VerifyEmailScreen';
 import { useApp } from '@/store/AppContext';
 import { colors } from '@/theme';
 
@@ -31,7 +30,7 @@ const navigationTheme: Theme = {
 };
 
 export function RootNavigator() {
-  const { status, onboarding, profile, isAuthenticated } = useApp();
+  const { status, onboarding, isAuthenticated } = useApp();
 
   if (status === 'idle' || status === 'loading') {
     return (
@@ -56,10 +55,8 @@ export function RootNavigator() {
         */}
         {!onboarding.completed ? (
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-        ) : !profile ? (
-          <Stack.Screen name="Register" component={RegisterScreen} />
         ) : !isAuthenticated ? (
-          <Stack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
+          <Stack.Screen name="Register" component={RegisterScreen} />
         ) : null}
         <Stack.Screen name="Tabs" component={TabNavigator} />
         <Stack.Screen

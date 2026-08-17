@@ -7,5 +7,4 @@ export { RankingScreen } from './RankingScreen';
 export { PaywallScreen } from './PaywallScreen';
 export { SettingsScreen } from './SettingsScreen';
 export { RegisterScreen } from './RegisterScreen';
-export { VerifyEmailScreen } from './VerifyEmailScreen';
 export { ShareScreen } from './ShareScreen';

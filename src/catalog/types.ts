@@ -36,7 +36,22 @@ export interface FieldDef {
  *  - `manualSale`: kullanıcı tek bir güncel satış değeri girer, 3 senaryo türetilir
  *  - `manual3`   : kullanıcı üç senaryoyu da kendi girer
  */
-export type PricingMode = 'metal' | 'manualSale' | 'manual3';
+/**
+ * Fiyatlama modu:
+ *  - `metal`      : altın/gümüş — saf gram × gram fiyatı
+ *  - `quote`      : döviz/kripto — miktar × birim fiyat
+ *  - `manualSale` : kullanıcı tek güncel değer girer
+ *  - `manual3`    : kullanıcı üç senaryoyu da girer
+ * İlk ikisi otomatik güncellenebilir (premium); son ikisi her zaman elle.
+ */
+export type PricingMode = 'metal' | 'quote' | 'manualSale' | 'manual3';
+
+/** Döviz/kripto fiyat referansı. */
+export interface QuotePricing {
+  kind: 'fx' | 'crypto';
+  /** USD, EUR, BTC, ETH… */
+  symbol: string;
+}
 
 export type MetalKind = 'gold' | 'silver';
 
@@ -73,6 +88,7 @@ export interface AssetTypeDef {
   unit: MeasurementUnit;
   pricing: PricingMode;
   metal?: MetalPricing;
+  quote?: QuotePricing;
   /** Türe özel sorular. */
   fields: FieldDef[];
   /** Listede kısa açıklama. */

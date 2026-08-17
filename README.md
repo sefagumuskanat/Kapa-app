@@ -122,8 +122,27 @@ Yeni bir tür eklemek için yeni ekran yazmak gerekmez; `DynamicForm` alanları 
 | Mod | Kimler | Nasıl hesaplanır |
 | --- | --- | --- |
 | `metal` | Altın, gümüş | saf gram × gram fiyatı × piyasa çarpanı |
+| `quote` | Döviz, kripto | miktar × birim fiyat |
 | `manualSale` | Pırlanta, ev, arsa, dükkân | kullanıcı güncel değeri girer, 3 senaryo türetilir |
 | `manual3` | Araç, elektronik, hobi, diğer | kullanıcı üç fiyatı da kendi girer |
+
+### Otomatik fiyat = premium
+
+`metal` ve `quote` otomatik güncellenebilir, **ama yalnızca premium üyede**.
+Ücretsiz kademede piyasa hiç çağrılmaz; kullanıcının en son girdiği değer kullanılır.
+Hiç girmemişse **alış fiyatına** düşer ve bunu açıkça yazar — sıfır göstermek yanlış olurdu.
+
+### Fiyat kaynakları
+
+Canlı uçlar `PriceFeedService` içinde hazır; `USE_LIVE_FEED` ile açılır. Uç hata verirse
+otomatik olarak referans tabloya düşer, uygulama çalışmaya devam eder.
+
+| Varlık | Uç | Ücret |
+| --- | --- | --- |
+| Altın/gümüş (Kapalıçarşı) | `kapalicarsi.apiluna.org` | Ücretsiz, anahtarsız, 1 istek/sn |
+| Döviz (serbest) | aynı uç | Ücretsiz |
+| Döviz (resmî) | `tcmb.gov.tr/kurlar/today.xml` | Ücretsiz, günde bir yayın |
+| Kripto | `api.coingecko.com` | Ücretsiz, anahtarsız |
 
 **Altın modeli.** Ziynet altınlarında sabit saf ağırlık (tam 6,608 g; çeyrek onun 1/4'ü),
 işçilikli takıda `gram × ayar milyemi`. Ayar milyemleri sektör standardıdır

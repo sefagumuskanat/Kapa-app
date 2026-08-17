@@ -102,10 +102,8 @@ export function AssetListScreen({}: Props) {
           emoji={EMPTY.assets.emoji}
           title={EMPTY.assets.title}
           description={EMPTY.assets.line}
-          actionLabel="Bir şeyler ekle"
+          actionLabel="Hadi bir şeyler ekle"
           onAction={() => root.navigate('AddAsset')}
-          secondaryActionLabel="Örnek listeyi yükle"
-          onSecondaryAction={() => void loadDemoData()}
         />
       </Screen>
     );

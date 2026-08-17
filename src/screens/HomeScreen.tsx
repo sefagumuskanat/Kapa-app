@@ -26,7 +26,7 @@ import { rankService } from '@/services';
 import { useApp } from '@/store/AppContext';
 import { colors, fonts, radius, spacing, typography } from '@/theme';
 import { RankResult } from '@/types';
-import { Button } from '@/components';
+import { AdOverlay, Button } from '@/components';
 import { ReminderBanner } from '@/components/ReminderBanner';
 import { liralikAdamsin } from '@/components/ShareCard';
 import { BRAND, EMPTY, resolveKapaTier } from '@/content/vibes';
@@ -54,6 +54,10 @@ export function HomeScreen({ navigation }: Props) {
   } = useApp();
 
   const [rank, setRank] = useState<RankResult | null>(null);
+  // Açılışta bir kez reklam; premium'da AdOverlay kendini atlar.
+  const [openAdVisible, setOpenAdVisible] = useState(true);
+  // Paylaşımdan önce reklam.
+  const [shareAdVisible, setShareAdVisible] = useState(false);
 
   useEffect(() => {
     if (!consent.granted || !portfolio) {
@@ -113,10 +117,8 @@ export function HomeScreen({ navigation }: Props) {
           emoji={EMPTY.home.emoji}
           title={EMPTY.home.title}
           description={EMPTY.home.line}
-          actionLabel="Bir şeyler ekle"
+          actionLabel="Hadi bir şeyler ekle"
           onAction={() => root.navigate('AddAsset')}
-          secondaryActionLabel="Örnek listeyi yükle"
-          onSecondaryAction={() => void loadDemoData()}
         />
       </Screen>
     );
@@ -143,6 +145,29 @@ export function HomeScreen({ navigation }: Props) {
         </Pressable>
       }
     >
+      <AdOverlay
+        slot="app-open"
+        visible={openAdVisible}
+        onFinished={() => setOpenAdVisible(false)}
+        onUpgrade={() => {
+          setOpenAdVisible(false);
+          root.navigate('Paywall', { source: 'app-open-ad' });
+        }}
+      />
+
+      <AdOverlay
+        slot="before-share"
+        visible={shareAdVisible}
+        onFinished={() => {
+          setShareAdVisible(false);
+          root.navigate('Share');
+        }}
+        onUpgrade={() => {
+          setShareAdVisible(false);
+          root.navigate('Paywall', { source: 'share-ad' });
+        }}
+      />
+
       {/* Karne: "kaç paralık adamsın" sorusunun doğrudan cevabı. */}
       <Card elevated style={styles.totalCard}>
         <View style={styles.verdictRow}>
@@ -195,7 +220,7 @@ export function HomeScreen({ navigation }: Props) {
 
         <Button
           label="Paylaş 🚀"
-          onPress={() => root.navigate('Share')}
+          onPress={() => setShareAdVisible(true)}
           variant="secondary"
           fullWidth
         />

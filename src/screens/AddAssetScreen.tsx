@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
+  AdOverlay,
   Button,
   Card,
   CelebrationOverlay,
@@ -15,10 +16,11 @@ import {
 import { initialValues, validateFields } from '@/components/DynamicForm';
 import { Screen } from '@/components/Screen';
 import {
+  ADD_GROUPS,
+  AddGroup,
   AssetTypeDef,
-  AVAILABLE_CATEGORIES,
   getAssetType,
-  searchAssetTypes,
+  typesByCategory,
 } from '@/catalog';
 import {
   CATEGORY_EMOJI,
@@ -27,7 +29,7 @@ import {
   UNKNOWN_VALUE_CELEBRATION,
 } from '@/content/vibes';
 import type { RootStackParamList } from '@/navigation/types';
-import { FREE_ASSET_LIMIT, valuationService } from '@/services';
+import { adService, FREE_ASSET_LIMIT, valuationService } from '@/services';
 import { useApp } from '@/store/AppContext';
 import { colors, fonts, radius, spacing, TOUCH_TARGET, typography } from '@/theme';
 import { AcquisitionSource, Asset, AssetCondition } from '@/types';
@@ -36,7 +38,7 @@ import { createId, nowIso } from '@/utils/id';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddAsset'>;
 
-type Step = 'pick' | 'details' | 'price';
+type Step = 'group' | 'type' | 'details' | 'price';
 
 const SOURCE_LABEL: Record<AcquisitionSource, string> = {
   purchase: '💳 Satın aldım',
@@ -53,12 +55,18 @@ export function AddAssetScreen({ navigation, route }: Props) {
     [assets, editingId],
   );
 
-  const [step, setStep] = useState<Step>(editing ? 'details' : 'pick');
-  const [query, setQuery] = useState('');
-  const [category, setCategory] = useState<string | 'all'>('all');
+  const [step, setStep] = useState<Step>(editing ? 'details' : 'group');
+  const [group, setGroup] = useState<AddGroup | null>(null);
   const [selectedType, setSelectedType] = useState<AssetTypeDef | null>(
     editing ? getAssetType(editing.typeId) : null,
   );
+  // Ekleme öncesi reklam (premium'da AdOverlay kendini atlar).
+  const [adPending, setAdPending] = useState(!editing);
+  /**
+   * Fiyat güncellerken çıkan reklam günde bir kez gösterilir.
+   * 10 kalem güncelleyen kullanıcı 10 reklam görmesin diye.
+   */
+  const [updateAdPending, setUpdateAdPending] = useState(false);
 
   const [name, setName] = useState(editing?.name ?? '');
   const [values, setValues] = useState<Record<string, string>>(() =>
@@ -96,12 +104,37 @@ export function AddAssetScreen({ navigation, route }: Props) {
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   const [celebratedValue, setCelebratedValue] = useState<number | null>(null);
 
-  const atFreeLimit = !isPremium && !editing && assets.length >= FREE_ASSET_LIMIT;
+  useEffect(() => {
+    if (!editing) return;
+    let active = true;
+    void adService.shouldShowUpdateAd(isPremium).then((show) => {
+      if (active && show) setUpdateAdPending(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [editing, isPremium]);
 
-  const results = useMemo(
-    () => searchAssetTypes(query, category === 'all' ? undefined : (category as never)),
-    [query, category],
+  const atFreeLimit = !isPremium && !editing && assets.length >= FREE_ASSET_LIMIT;
+  const isAutoPriced =
+    selectedType != null && (selectedType.pricing === 'metal' || selectedType.pricing === 'quote');
+
+  /** Seçilen gruptaki türler — açılır listede bunlar görünür. */
+  const groupTypes = useMemo(
+    () => (group ? typesByCategory(group.category) : []),
+    [group],
   );
+
+  const chooseGroup = (next: AddGroup) => {
+    setGroup(next);
+    const types = typesByCategory(next.category);
+    // Grupta tek tür varsa listeyi atlayıp doğrudan detaya geç.
+    if (types.length === 1) {
+      chooseType(types[0]);
+      return;
+    }
+    setStep('type');
+  };
 
   const chooseType = (type: AssetTypeDef) => {
     setSelectedType(type);
@@ -135,7 +168,9 @@ export function AddAssetScreen({ navigation, route }: Props) {
     let declaredSaleValue: number | null = null;
     let manualPrices: Asset['manualPrices'] = null;
 
-    if (selectedType.pricing === 'manualSale') {
+    // Elle değer isteyen iki durum: manualSale türleri ve ücretsiz kademedeki
+    // otomatik türler (premium olmadan piyasa fiyatı çekilmiyor).
+    if (selectedType.pricing === 'manualSale' || (isAutoPriced && !isPremium)) {
       declaredSaleValue = parseNumber(saleValue);
       if (declaredSaleValue == null || declaredSaleValue <= 0) {
         errors.sale = 'Bugün satsan kaça gider? Bir rakam yaz.';
@@ -198,7 +233,7 @@ export function AddAssetScreen({ navigation, route }: Props) {
       }
 
       await addAsset(asset);
-      const snapshot = await valuationService.valuateAsset(asset);
+      const snapshot = await valuationService.valuateAsset(asset, isPremium);
       setCelebration(
         snapshot.normalValue > 0 ? pickCelebration(snapshot.normalValue) : UNKNOWN_VALUE_CELEBRATION,
       );
@@ -232,8 +267,33 @@ export function AddAssetScreen({ navigation, route }: Props) {
     <Screen
       title={editing ? 'Düzenle' : 'Ne ekliyoruz?'}
       subtitle={STEP_SUBTITLE[step]}
-      onBack={() => (step === 'pick' || editing ? navigation.goBack() : setStep(prevStep(step)))}
+      onBack={() => (step === 'group' || editing ? navigation.goBack() : setStep(prevStep(step)))}
     >
+      {/* Ekleme öncesi reklam — premium'da hiç açılmaz. */}
+      <AdOverlay
+        slot="before-update"
+        visible={updateAdPending}
+        onFinished={() => {
+          setUpdateAdPending(false);
+          void adService.markUpdateAdShown();
+        }}
+        onUpgrade={() => {
+          setUpdateAdPending(false);
+          void adService.markUpdateAdShown();
+          navigation.navigate('Paywall', { source: 'update-ad' });
+        }}
+      />
+
+      <AdOverlay
+        slot="before-add"
+        visible={adPending}
+        onFinished={() => setAdPending(false)}
+        onUpgrade={() => {
+          setAdPending(false);
+          navigation.navigate('Paywall', { source: 'before-add-ad' });
+        }}
+      />
+
       <CelebrationOverlay
         visible={celebration != null}
         content={celebration}
@@ -248,59 +308,64 @@ export function AddAssetScreen({ navigation, route }: Props) {
 
       <StepBar current={step} />
 
-      {/* 1 — Ne olduğunu bul */}
-      {step === 'pick' ? (
+      {/* 1 — Hangi tür varlık? */}
+      {step === 'group' ? (
         <View style={styles.section}>
-          <Input
-            placeholder="🔍 Çeyrek altın, bilezik, arsa, airsoft…"
-            value={query}
-            onChangeText={setQuery}
-            autoCorrect={false}
-            autoFocus
-          />
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            <Chip label="Hepsi" selected={category === 'all'} onPress={() => setCategory('all')} tone="green" />
-            {AVAILABLE_CATEGORIES.map((item) => (
-              <Chip
-                key={item}
-                label={`${CATEGORY_EMOJI[item]} ${CATEGORY_LABEL[item]}`}
-                selected={category === item}
-                onPress={() => setCategory(item)}
-                tone="green"
-              />
+          <Text style={[typography.body, styles.muted]}>Ne ekliyoruz bakalım?</Text>
+          <View style={styles.groupGrid}>
+            {ADD_GROUPS.map((item) => (
+              <Pressable
+                key={item.id}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.label} ekle`}
+                onPress={() => chooseGroup(item)}
+                style={({ pressed }) => [styles.groupTile, pressed && styles.pressed]}
+              >
+                <Text style={styles.groupEmoji}>{item.emoji}</Text>
+                <Text style={[typography.bodyStrong, styles.groupLabel]} numberOfLines={1}>
+                  {item.label}
+                </Text>
+                <Text style={[typography.caption, styles.groupHint]} numberOfLines={2}>
+                  {item.hint}
+                </Text>
+              </Pressable>
             ))}
-          </ScrollView>
+          </View>
+        </View>
+      ) : null}
 
-          {results.length === 0 ? (
-            <Card>
-              <Text style={[typography.body, styles.muted]}>
-                Öyle bir şey bulamadık. “Diğer (ne olursa)” seçip kendin yazabilirsin —
-                fiyatını da sen belirlersin.
-              </Text>
-            </Card>
-          ) : (
-            <View style={styles.list}>
-              {results.map((type) => (
-                <Pressable
-                  key={type.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={type.label}
-                  onPress={() => chooseType(type)}
-                  style={({ pressed }) => [styles.typeRow, pressed && styles.pressed]}
-                >
-                  <Text style={styles.typeEmoji}>{type.emoji}</Text>
-                  <View style={styles.typeBody}>
-                    <Text style={[typography.bodyStrong, styles.typeName]}>{type.label}</Text>
-                    <Text style={[typography.caption, styles.muted]} numberOfLines={1}>
-                      {type.hint ?? PRICING_HINT[type.pricing]}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-                </Pressable>
-              ))}
-            </View>
-          )}
+      {/* 2 — Gruptaki hangi ürün? */}
+      {step === 'type' && group ? (
+        <View style={styles.section}>
+          <View style={styles.selectedBanner}>
+            <Text style={styles.typeEmoji}>{group.emoji}</Text>
+            <Text style={[typography.bodyStrong, styles.typeName]}>{group.label}</Text>
+            <Pressable accessibilityRole="button" onPress={() => setStep('group')}>
+              <Text style={[typography.caption, styles.link]}>Değiştir</Text>
+            </Pressable>
+          </View>
+
+          <Text style={[typography.body, styles.muted]}>Hangisi?</Text>
+          <View style={styles.list}>
+            {groupTypes.map((type) => (
+              <Pressable
+                key={type.id}
+                accessibilityRole="button"
+                accessibilityLabel={type.label}
+                onPress={() => chooseType(type)}
+                style={({ pressed }) => [styles.typeRow, pressed && styles.pressed]}
+              >
+                <Text style={styles.typeEmoji}>{type.emoji}</Text>
+                <View style={styles.typeBody}>
+                  <Text style={[typography.bodyStrong, styles.typeName]}>{type.label}</Text>
+                  <Text style={[typography.caption, styles.muted]} numberOfLines={1}>
+                    {type.hint ?? PRICING_HINT[type.pricing]}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+              </Pressable>
+            ))}
+          </View>
         </View>
       ) : null}
 
@@ -311,7 +376,7 @@ export function AddAssetScreen({ navigation, route }: Props) {
             <Text style={styles.typeEmoji}>{selectedType.emoji}</Text>
             <Text style={[typography.bodyStrong, styles.typeName]}>{selectedType.label}</Text>
             {!editing ? (
-              <Pressable accessibilityRole="button" onPress={() => setStep('pick')}>
+              <Pressable accessibilityRole="button" onPress={() => setStep(group ? 'type' : 'group')}>
                 <Text style={[typography.caption, styles.link]}>Değiştir</Text>
               </Pressable>
             ) : null}
@@ -404,14 +469,39 @@ export function AddAssetScreen({ navigation, route }: Props) {
           </Card>
 
           {/* Otomatik fiyatlanan: bilgi kartı */}
-          {selectedType.pricing === 'metal' ? (
+          {isAutoPriced && isPremium ? (
             <Card style={styles.autoCard}>
               <Text style={[typography.subheading, styles.cardTitle]}>📈 Fiyatı biz takip ederiz</Text>
               <Text style={[typography.body, styles.muted]}>
-                {selectedType.metal?.metal === 'gold' ? 'Altının' : 'Gümüşün'} güncel gram
-                fiyatına göre değerini kendimiz hesaplarız. Sen bir şey güncellemek zorunda
-                değilsin.
+                Güncel piyasa fiyatına göre değerini kendimiz hesaplarız. Sen bir şey
+                güncellemek zorunda değilsin.
               </Text>
+            </Card>
+          ) : null}
+
+          {/* Ücretsiz kademede otomatik fiyat yok; değeri kullanıcı giriyor. */}
+          {isAutoPriced && !isPremium ? (
+            <Card style={styles.section}>
+              <Text style={[typography.subheading, styles.cardTitle]}>🏷️ Bugün kaç para eder?</Text>
+              <Text style={[typography.caption, styles.muted]}>
+                Otomatik fiyat takibi premium özelliği. Ücretsiz sürümde değeri sen
+                giriyorsun, biz de ara ara güncellemeni hatırlatıyoruz.
+              </Text>
+              <Input
+                label="Toplam güncel değeri"
+                value={saleValue}
+                onChangeText={setSaleValue}
+                keyboardType="decimal-pad"
+                suffix="₺"
+                error={priceErrors.sale}
+              />
+              <Button
+                label="Otomatik olsun (Premium)"
+                onPress={() => navigation.navigate('Paywall', { source: 'auto-price' })}
+                variant="secondary"
+                icon="sparkles-outline"
+                fullWidth
+              />
             </Card>
           ) : null}
 
@@ -484,17 +574,19 @@ export function AddAssetScreen({ navigation, route }: Props) {
 
 const PRICING_HINT: Record<string, string> = {
   metal: 'Fiyatını piyasadan biz takip ederiz.',
+  quote: 'Kurunu piyasadan biz takip ederiz.',
   manualSale: 'Güncel değerini sen girersin.',
   manual3: 'Üç fiyatı sen belirlersin.',
 };
 
 const STEP_SUBTITLE: Record<Step, string> = {
-  pick: '1 / 3 · Ne bu?',
-  details: '2 / 3 · Detaylar',
-  price: '3 / 3 · Fiyat',
+  group: '1 / 4 · Neyi ekliyoruz?',
+  type: '2 / 4 · Hangisi?',
+  details: '3 / 4 · Detaylar',
+  price: '4 / 4 · Fiyat',
 };
 
-const STEP_ORDER: Step[] = ['pick', 'details', 'price'];
+const STEP_ORDER: Step[] = ['group', 'type', 'details', 'price'];
 
 function prevStep(current: Step): Step {
   const index = STEP_ORDER.indexOf(current);
@@ -534,6 +626,19 @@ const styles = StyleSheet.create({
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
 
   list: { gap: spacing.sm },
+  groupGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  groupTile: {
+    width: '48%',
+    gap: spacing.xs,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  groupEmoji: { fontSize: 30, lineHeight: 38 },
+  groupLabel: { color: colors.text },
+  groupHint: { color: colors.textMuted },
   typeRow: {
     minHeight: TOUCH_TARGET + 8,
     flexDirection: 'row',

@@ -12,7 +12,6 @@ export type TabParamList = {
 export type RootStackParamList = {
   Onboarding: undefined;
   Register: undefined;
-  VerifyEmail: { demoCode?: string } | undefined;
   Tabs: NavigatorScreenParams<TabParamList>;
   AddAsset: { assetId?: string } | undefined;
   AssetDetail: { assetId: string };

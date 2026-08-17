@@ -1,4 +1,5 @@
-import { computePureWeight, metalPriceService } from './MetalPriceService';
+import { computePureWeight } from './MetalPriceService';
+import { priceFeed } from './PriceFeedService';
 import { getAssetType } from '@/catalog';
 import {
   Asset,
@@ -43,12 +44,20 @@ const LIQUIDITY: Record<AssetCategory, LiquidityProfile> = {
   collectible: { fastDiscount: 0.3, patientPremium: 0.35 },
   // Gayrimenkul yavaş satılır: acele edenin kaybı büyük, bekleyenin kazancı gerçek.
   property: { fastDiscount: 0.18, patientPremium: 0.12 },
+  // Döviz ve kripto neredeyse nakit; makas çok dar.
+  currency: { fastDiscount: 0.01, patientPremium: 0.01 },
+  crypto: { fastDiscount: 0.02, patientPremium: 0.02 },
   other: { fastDiscount: 0.25, patientPremium: 0.15 },
 };
 
 export interface IValuationService {
-  valuateAsset(asset: Asset, currency?: Currency): Promise<ValuationSnapshot>;
-  valuateAll(assets: Asset[], currency?: Currency): Promise<ValuationSnapshot[]>;
+  /**
+   * @param isPremium Otomatik fiyat güncellemesi premium özelliğidir.
+   *   Ücretsiz kullanıcıda piyasa fiyatı çekilmez; kullanıcının en son
+   *   elle girdiği değer kullanılır.
+   */
+  valuateAsset(asset: Asset, isPremium: boolean, currency?: Currency): Promise<ValuationSnapshot>;
+  valuateAll(assets: Asset[], isPremium: boolean, currency?: Currency): Promise<ValuationSnapshot[]>;
   buildPortfolioSnapshot(
     assets: Asset[],
     valuations: ValuationSnapshot[],
@@ -66,15 +75,30 @@ interface PriceResult {
 }
 
 class ValuationServiceImpl implements IValuationService {
-  async valuateAsset(asset: Asset, currency: Currency = 'TRY'): Promise<ValuationSnapshot> {
+  async valuateAsset(
+    asset: Asset,
+    isPremium: boolean,
+    currency: Currency = 'TRY',
+  ): Promise<ValuationSnapshot> {
     const type = getAssetType(asset.typeId);
     const factors: string[] = [];
+    const autoPriced = type != null && (type.pricing === 'metal' || type.pricing === 'quote');
 
     let priced: PriceResult;
     if (!type) {
       priced = this.unavailable('Tür tanımı bulunamadı', asset);
+    } else if (autoPriced && !isPremium) {
+      // Ücretsiz kademede piyasa fiyatı çekilmez; kullanıcının girdiği değer geçerli.
+      priced = this.priceFromDeclaredSale(asset, 'Ücretsiz kademe — fiyatı sen güncelliyorsun');
+      // Henüz elle bir değer girmemişse sıfır göstermek yanlış olur:
+      // alış fiyatını başlangıç kabul edip bunu açıkça söylüyoruz.
+      if (priced.source.kind === 'unavailable') {
+        priced = this.priceFromPurchase(asset);
+      }
     } else if (type.pricing === 'metal') {
       priced = await this.priceFromMetal(asset, currency);
+    } else if (type.pricing === 'quote') {
+      priced = await this.priceFromQuote(asset, currency);
     } else if (type.pricing === 'manual3') {
       priced = this.priceFromManualThree(asset);
     } else {
@@ -86,7 +110,7 @@ class ValuationServiceImpl implements IValuationService {
     const acquisitionCost = this.acquisitionCost(asset);
     if (acquisitionCost == null) factors.push('Kaça aldığın bilinmiyor, kâr/zarar çıkmaz');
 
-    const staleness = this.stalenessDays(asset, type?.pricing);
+    const staleness = this.stalenessDays(asset, type?.pricing, autoPriced && isPremium);
     if (staleness != null && staleness > 45) {
       factors.push(`Bu değeri ${Math.round(staleness)} gündür güncellemedin`);
     }
@@ -110,8 +134,12 @@ class ValuationServiceImpl implements IValuationService {
     };
   }
 
-  async valuateAll(assets: Asset[], currency: Currency = 'TRY'): Promise<ValuationSnapshot[]> {
-    return Promise.all(assets.map((asset) => this.valuateAsset(asset, currency)));
+  async valuateAll(
+    assets: Asset[],
+    isPremium: boolean,
+    currency: Currency = 'TRY',
+  ): Promise<ValuationSnapshot[]> {
+    return Promise.all(assets.map((asset) => this.valuateAsset(asset, isPremium, currency)));
   }
 
   /* --------------------------------------------------------------- */
@@ -124,13 +152,13 @@ class ValuationServiceImpl implements IValuationService {
     const weight = computePureWeight(type, asset.attributes);
     if (!weight) return this.unavailable('Gram veya ayar bilgisi eksik', asset);
 
-    const quote = await metalPriceService.getQuote(type.metal.metal, currency);
-    const base = weight.pureGram * quote.pricePerGram * type.metal.marketFactor;
+    const quote = await priceFeed.getMetalGram(type.metal.metal);
+    const base = weight.pureGram * quote.unitPrice * type.metal.marketFactor;
     const liquidity = LIQUIDITY[asset.category] ?? LIQUIDITY.other;
 
     const factors = [
       `${weight.explanation} = ${weight.pureGram.toFixed(2)} g saf`,
-      `Gram fiyatı ${Math.round(quote.pricePerGram)} ₺`,
+      `Gram fiyatı ${Math.round(quote.unitPrice)} ₺`,
     ];
     if (type.metal.marketFactor < 1) {
       factors.push(`İşçilik payı düşüldü (×${type.metal.marketFactor})`);
@@ -145,6 +173,36 @@ class ValuationServiceImpl implements IValuationService {
       patient: base * (1 + liquidity.patientPremium),
       source: quote.source,
       // Maden fiyatı en güvenilir kalem; canlı olmadığı için tavan yapmıyoruz.
+      reliability: quote.isLive ? 0.95 : 0.8,
+      factors,
+    };
+  }
+
+  /** Döviz / kripto: miktar × birim fiyat. */
+  private async priceFromQuote(asset: Asset, currency: Currency): Promise<PriceResult> {
+    const type = getAssetType(asset.typeId);
+    if (!type?.quote) return this.unavailable('Kur bilgisi eksik', asset);
+
+    const amount = Number(String(asset.attributes.miktar ?? '').replace(',', '.'));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return this.unavailable('Miktar girilmemiş', asset);
+    }
+
+    const quote = await priceFeed.getQuote(type.quote.kind, type.quote.symbol);
+    if (quote.unitPrice <= 0) return this.unavailable('Fiyat alınamadı', asset);
+
+    const base = amount * quote.unitPrice;
+    const liquidity = LIQUIDITY[asset.category] ?? LIQUIDITY.other;
+    const factors = [
+      `${amount} ${type.quote.symbol} × ${Math.round(quote.unitPrice).toLocaleString('tr-TR')} ₺`,
+    ];
+    if (!quote.isLive) factors.push('Canlı bağlantı kapalı, demo tablo kullanıldı');
+
+    return {
+      fast: base * (1 - liquidity.fastDiscount),
+      normal: base,
+      patient: base * (1 + liquidity.patientPremium),
+      source: quote.source,
       reliability: quote.isLive ? 0.95 : 0.8,
       factors,
     };
@@ -173,10 +231,13 @@ class ValuationServiceImpl implements IValuationService {
   }
 
   /** Kullanıcı tek bir güncel satış değeri girmiş (pırlanta, ev, arsa). */
-  private priceFromDeclaredSale(asset: Asset): PriceResult {
+  private priceFromDeclaredSale(asset: Asset, label?: string): PriceResult {
     const value = asset.declaredSaleValue;
     if (value == null || value <= 0) {
-      return this.unavailable('Güncel değer girilmemiş', asset);
+      return this.unavailable(
+        label ? 'Değeri henüz güncellemedin' : 'Güncel değer girilmemiş',
+        asset,
+      );
     }
     const liquidity = LIQUIDITY[asset.category] ?? LIQUIDITY.other;
     return {
@@ -185,11 +246,36 @@ class ValuationServiceImpl implements IValuationService {
       patient: value * (1 + liquidity.patientPremium),
       source: {
         kind: 'user-declared',
-        label: 'Senin girdiğin güncel değer',
+        label: label ?? 'Senin girdiğin güncel değer',
         timestamp: asset.valueUpdatedAt ?? asset.updatedAt,
       },
       reliability: 0.65,
-      factors: ['Güncel değeri sen girdin'],
+      factors: [label ?? 'Güncel değeri sen girdin'],
+    };
+  }
+
+  /**
+   * Son çare: alış fiyatını bugünkü değer sayar.
+   * Doğru olduğunu iddia etmiyoruz — sıfır göstermekten iyi ve güven skoru düşük.
+   */
+  private priceFromPurchase(asset: Asset): PriceResult {
+    const cost = this.acquisitionCost(asset);
+    if (cost == null || cost <= 0) {
+      return this.unavailable('Değeri henüz girmedin', asset);
+    }
+    const liquidity = LIQUIDITY[asset.category] ?? LIQUIDITY.other;
+    return {
+      fast: cost * (1 - liquidity.fastDiscount),
+      normal: cost,
+      patient: cost * (1 + liquidity.patientPremium),
+      source: {
+        kind: 'acquisition-fallback',
+        label: 'Aldığın fiyat baz alındı — güncelle',
+        timestamp: asset.valueUpdatedAt ?? asset.updatedAt,
+      },
+      // Bilinçli olarak düşük: bu bir tahmin bile değil, eski fiyat.
+      reliability: 0.3,
+      factors: ['Güncel değeri girmedin, alış fiyatını kullandık'],
     };
   }
 
@@ -219,8 +305,8 @@ class ValuationServiceImpl implements IValuationService {
   }
 
   /** Elle güncellenen kalemlerde değerin kaç gün önce tazelendiği. */
-  private stalenessDays(asset: Asset, pricing?: string): number | null {
-    if (pricing === 'metal') return null; // otomatik güncelleniyor
+  private stalenessDays(asset: Asset, pricing?: string, autoActive = false): number | null {
+    if (autoActive) return null; // piyasadan otomatik geliyor, bayatlamaz
     const ref = asset.valueUpdatedAt ?? asset.updatedAt;
     const then = new Date(ref).getTime();
     if (Number.isNaN(then)) return null;
