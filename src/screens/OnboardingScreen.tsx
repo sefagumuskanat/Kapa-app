@@ -97,8 +97,9 @@ export function OnboardingScreen({}: Props) {
             <Card style={styles.gateCard}>
               <Text style={[typography.heading, styles.gateTitle]}>🙋 Sıra sende</Text>
               <Text style={[typography.body, styles.gateBody]}>
-                Devam edince kısa bir kayıt var: adın, doğum tarihin, e-postan ve ne iş
-                yaptığın. Yaş kontrolünü de doğum tarihinden yapıyoruz.
+                Devam edince 20 saniyelik bir kayıt var: adın, doğum yılın ve ne iş yaptığın.
+                E-posta yok, şifre yok, doğrulama maili yok. Yaş kontrolünü doğum yılından
+                yapıyoruz.
               </Text>
             </Card>
 

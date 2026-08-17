@@ -50,8 +50,8 @@ export function RootNavigator() {
         }}
       >
         {/*
-          Akış sırası: tanıtım → kayıt → e-posta doğrulama → uygulama.
-          Kayıt zorunlu olduğu için doğrulanmamış kullanıcı sekmelere ulaşamaz.
+          Akış sırası: tanıtım → kayıt → uygulama.
+          Kayıt zorunlu olduğu için kayıtsız kullanıcı sekmelere ulaşamaz.
         */}
         {!onboarding.completed ? (
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />

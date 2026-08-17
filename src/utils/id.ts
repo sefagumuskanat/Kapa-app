@@ -10,8 +10,8 @@ export function createId(prefix = 'id'): string {
 }
 
 /**
- * Sıralama için takma kimlik. Hesap, e-posta veya cihaz kimliğiyle
- * ilişkilendirilmez; yalnızca cihazda saklanır.
+ * Sıralama için takma kimlik. Hesap veya cihaz kimliğiyle ilişkilendirilmez;
+ * yalnızca cihazda saklanır.
  */
 export function createPseudonymId(): string {
   return createId('anon');

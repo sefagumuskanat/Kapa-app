@@ -34,6 +34,15 @@ import { CATEGORY_LABEL, formatCurrency, formatSignedCurrency } from '@/utils/fo
 
 type Props = BottomTabScreenProps<TabParamList, 'Home'>;
 
+/**
+ * Açılış reklamı uygulama başına bir kez. Bileşen state'i yetmiyor: ana ekran
+ * boş listede erken dönüyor, orada AdOverlay hiç mount edilmiyor. Bayrak
+ * olmasaydı kullanıcı ilk varlığını eklediği anda — yani kutlama ekranının
+ * üstünde — "açılış" reklamı patlıyordu. Bayrak ayrıca sekmeler arası gidip
+ * gelirken reklamın tekrar açılmasını da engelliyor.
+ */
+let appOpenAdConsumed = false;
+
 export function HomeScreen({ navigation }: Props) {
   const root = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {
@@ -57,9 +66,13 @@ export function HomeScreen({ navigation }: Props) {
 
   const [rank, setRank] = useState<RankResult | null>(null);
   // Açılışta bir kez reklam; premium'da AdOverlay kendini atlar.
-  const [openAdVisible, setOpenAdVisible] = useState(true);
+  const [openAdVisible, setOpenAdVisible] = useState(!appOpenAdConsumed);
   // Paylaşımdan önce reklam.
   const [shareAdVisible, setShareAdVisible] = useState(false);
+
+  useEffect(() => {
+    appOpenAdConsumed = true;
+  }, []);
 
   useEffect(() => {
     if (!consent.granted || !portfolio) {

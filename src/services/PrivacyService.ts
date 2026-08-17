@@ -90,8 +90,8 @@ class LocalPrivacyService implements IPrivacyService {
       {
         key: 'account',
         label: 'Hesap bilgilerin',
-        location: 'server',
-        description: 'Ad, e-posta, doğum tarihi ve meslek. (Demoda cihazda tutuluyor.)',
+        location: 'device',
+        description: 'Ad, doğum yılı ve meslek. E-posta hiç istenmiyor; cihazda kalır.',
       },
       {
         key: 'priceQuery',

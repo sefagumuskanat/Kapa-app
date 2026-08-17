@@ -171,7 +171,7 @@ function reducer(state: State, action: Action): State {
 
 interface AppContextValue extends State {
   isPremium: boolean;
-  /** Kayıt tamam ve e-posta doğrulanmış mı. */
+  /** Kayıt tamamlandı mı. */
   isAuthenticated: boolean;
   /** Elle güncellenmesi gereken, süresi geçmiş varlıklar. */
   staleAssets: Asset[];

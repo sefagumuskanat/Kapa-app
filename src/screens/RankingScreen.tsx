@@ -185,7 +185,7 @@ const SHARED_ITEMS = [
 const NEVER_SHARED = [
   'Neyin var, ne yazdın, ne not düştün',
   'Hangi kategoride ne kadarın olduğu',
-  'Adın, e-postan, nerede oturduğun, telefonun kim olduğu',
+  'Adın, nerede oturduğun, telefonun kim olduğu',
   'Diğer iki senaryodaki rakamların',
 ];
 
