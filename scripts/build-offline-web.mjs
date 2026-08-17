@@ -30,20 +30,24 @@ html = html.replace(/(src|href)="\/(_expo\/)/g, '$1="./$2');
 if (html === before) console.warn('! index.html içinde mutlak yol bulunamadı');
 writeFileSync(indexPath, html);
 
-// 2) Bundle içindeki asset (yazı tipi vb.) yolları
+// 2) Bundle içindeki mutlak yollar
+//    - "/assets/…"  : yazı tipleri, ikonlar
+//    - "/_expo/…"   : kod bölünmesiyle oluşan yan parçalar (dinamik import'lar).
+//      Bunlar düzeltilmezse file:// üzerinde sessizce 404 olur ve dinamik
+//      import kullanan özellikler (bildirim, görsel paylaşma) yedeğe düşer.
 const jsDir = join(outDir, '_expo/static/js/web');
 const bundles = readdirSync(jsDir).filter((f) => f.endsWith('.js'));
 let rewritten = 0;
 for (const file of bundles) {
   const p = join(jsDir, file);
   const src = readFileSync(p, 'utf8');
-  const out = src.replaceAll('"/assets/', '"assets/');
+  const out = src.replaceAll('"/assets/', '"assets/').replaceAll('"/_expo/', '"_expo/');
   if (out !== src) {
     writeFileSync(p, out);
     rewritten += 1;
   }
 }
-console.log(`> ${rewritten}/${bundles.length} bundle dosyasında asset yolu düzeltildi`);
+console.log(`> ${rewritten}/${bundles.length} bundle dosyasında mutlak yol düzeltildi`);
 
 // 3) Çift tıklanacak dosyanın adı açık olsun
 copyFileSync(indexPath, join(outDir, 'KAPAMETRE-BASLAT.html'));
