@@ -55,6 +55,17 @@ npm run android    # veya: ios / web
 npm run typecheck  # tsc --noEmit
 ```
 
+### Kurulumsuz çalışan sürüm
+
+```bash
+npm run build:offline        # dist-offline/ üretir
+```
+
+`expo export` mutlak yollar (`/_expo/…`, `/assets/…`) ürettiği için çıktı yalnızca bir
+sunucu kökünden çalışır. `scripts/build-offline-web.mjs` bu yolları belge-göreli hale
+getirir; sonuç klasör nereye kopyalanırsa kopyalansın, `KAPAMETRE-BASLAT.html` dosyasına
+çift tıklayarak `file://` üzerinden açılır. Node, sunucu veya internet gerekmez.
+
 İlk açılışta onboarding tamamlandığında demo portföy otomatik yüklenir
 (20g altın · 2 parti, Sony A7 IV seti, maliyeti bilinmeyen telefon, hediye bisiklet,
 pırlanta yüzük). Ayarlar → Demo bölümünden yeniden yüklenebilir.

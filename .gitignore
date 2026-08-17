@@ -17,3 +17,5 @@ yarn-error.*
 .env.local
 ios/
 android/
+
+dist-offline/

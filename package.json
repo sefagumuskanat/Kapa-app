@@ -9,6 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
+    "build:offline": "node scripts/build-offline-web.mjs",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

@@ -18,7 +18,7 @@ import {
 } from '@/theme/typography';
 
 export default function App() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Baloo2_600SemiBold,
     Baloo2_700Bold,
     Baloo2_800ExtraBold,
@@ -27,11 +27,15 @@ export default function App() {
     Nunito_700Bold,
   });
 
+  // Yazı tipi inemezse (yavaş bağlantı, bozuk asset) uygulama açılış ekranında
+  // sonsuza kadar asılı kalmamalı. Sistem fontuyla devam etmek, hiç açılmamaktan iyidir.
+  const ready = fontsLoaded || fontError != null;
+
   return (
     <SafeAreaProvider>
       <View style={styles.root}>
         <StatusBar style="light" backgroundColor={colors.background} />
-        {fontsLoaded ? (
+        {ready ? (
           <AppProvider>
             <RootNavigator />
           </AppProvider>
