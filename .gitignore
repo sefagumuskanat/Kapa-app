@@ -19,3 +19,7 @@ ios/
 android/
 
 dist-offline/
+
+# Demo paketleri — dist-offline'dan ve git archive'dan üretiliyor, kaynak değil.
+KAPAMETRE-demo.zip
+KAPAMETRE-kaynak.zip
