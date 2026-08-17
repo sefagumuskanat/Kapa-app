@@ -7,7 +7,7 @@
 Neyin var yazıyorsun, uygulama üç ihtimalle kaç para ettiğini söylüyor ve sana bir karne
 kesiyor. Hedef kitle ciddi yatırımcı değil — merakından ya da eğlence olsun diye açan
 bireysel kullanıcı. Ton buna göre: mahalle ağzı, şakacı, samimi.
-Expo + React Native + TypeScript.
+Expo SDK 57 + React Native 0.86 + React 19 + TypeScript.
 
 Bu depo **gerçek backend gerektirmeyen, tamamen tıklanabilir bir demo** üretir. Tüm servisler
 mock'tur; hiçbir canlı fiyat kaynağı, scraping veya gerçek API anahtarı içermez.
@@ -54,6 +54,17 @@ npm start          # Expo geliştirme sunucusu
 npm run android    # veya: ios / web
 npm run typecheck  # tsc --noEmit
 ```
+
+### Emülatörde / telefonda çalıştırma
+
+```bash
+npm install
+npx expo start --android     # emülatör açıkken
+npx expo start               # QR → Expo Go
+```
+
+Proje güncel SDK'da olduğu için mağazadaki Expo Go doğrudan çalışır; ayrı bir
+geliştirme derlemesi (dev build) gerekmez.
 
 ### Kurulumsuz çalışan sürüm
 

@@ -34,7 +34,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={styles.root}>
-        <StatusBar style="light" backgroundColor={colors.background} />
+        {/* SDK 57'de Android edge-to-edge varsayılan; backgroundColor artık desteklenmiyor.
+            Zemin rengini alttaki View veriyor. */}
+        <StatusBar style="light" />
         {ready ? (
           <AppProvider>
             <RootNavigator />
